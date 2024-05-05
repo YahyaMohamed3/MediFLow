@@ -1,0 +1,133 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  Doctors
+{% endblock %}
+
+{% block main %}
+<head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/boxicons@2.1.0/css/boxicons.min.css"> <!-- Import Boxicons CSS -->
+    <style>
+        .oval-input {
+            border-radius: 50px; /* Adjust border-radius to make it oval-shaped */
+            height: 45px; /* Adjust height of the input field */
+            padding: 10px 20px; /* Adjust padding of the input field */
+            font-size: 1.2rem; /* Adjust font size of the input field */
+        }
+        #view_details {
+            height: 3rem; /* Adjust height of the button */
+            padding: 10px 30px; /* Adjust padding of the button */
+            font-size: 1rem; /* Adjust font size of the button */
+            border-radius: 50px; /* Adjust border-radius of the button */
+        }
+    </style>
+</head>
+<h1 style="text-align:center; margin-top:5rem;">Doctors</h1>
+<div class="container">
+    <div class="row">
+        <div class="col-md-6 offset-md-3">
+            <form action="" method="GET">
+                <div class="input-group mb-2" style="max-width:80rem;">
+                    <input type="text" class="form-control oval-input" placeholder="Search for Doctors..." id="searchInput" autocomplete="off">
+                    <button class="btn btn-primary" type="submit" onclick="searchTable()"><i class='bx bx-search' style="font-size: 1.5rem;"></i></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+    <div class="table-responsive">
+        <table class="content-table" id="patientTable">
+            <thead>
+                <tr>
+                    <th>Schedule</th>
+                    <th>Name</th>
+                    <th>Specializaton</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+
+                </tr>
+            </thead>
+            <tbody>
+                {% for doctor in doctors %}
+                <tr>
+
+                    <td><a class="btn btn-outline-primary" href="/schedule/{{ doctor[4] if doctor else '' }}">View</a></td>
+                    <td>{{ 'Dr. '+ doctor[0]}}</td>
+                    <td>{{ doctor[2] }}</td>
+                    <td>{{ doctor[1] | format_phone }}</td>
+                    <td>{{ doctor[3] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<!-- Pagination -->
+<div style="margin-top:2rem;display:flex;align-content: stretch;flex-direction: row;justify-content: center;">
+    <ul class="pagination">
+        {% if page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="?page=1" aria-label="First">
+                <span aria-hidden="true">««</span>
+            </a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page - 1 }}" aria-label="Previous">
+                <span aria-hidden="true">«</span>
+            </a>
+        </li>
+        {% endif %}
+
+        {% for num in range(1, total_pages + 1) %}
+        <li class="page-item {% if num == page %}active{% endif %}">
+            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+        </li>
+        {% endfor %}
+
+        {% if page < total_pages %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page + 1 }}" aria-label="Next">
+                <span aria-hidden="true">»</span>
+            </a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ total_pages }}" aria-label="Last">
+                <span aria-hidden="true">»»</span>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</div>
+<script>
+    // Function to perform search
+function searchTable() {
+    // Declare variables
+    var input, filter, table, tr, td, i, txtValue;
+    input = document.getElementById("searchInput");
+    filter = input.value.toUpperCase();
+    table = document.getElementById("patientTable");
+    tr = table.getElementsByTagName("tr");
+
+    // Loop through all table rows, and hide those who don't match the search query
+    for (i = 0; i < tr.length; i++) {
+        td = tr[i].getElementsByTagName("td");
+        for (var j = 0; j < td.length; j++) {
+            if (td[j]) {
+                txtValue = td[j].textContent || td[j].innerText;
+                if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                    tr[i].style.display = "";
+                    break;
+                } else {
+                    tr[i].style.display = "none";
+                }
+            }
+        }
+    }
+}
+
+// Event listener for search input
+document.getElementById("searchInput").addEventListener("keyup", searchTable);
+</script>
+{% endblock %}

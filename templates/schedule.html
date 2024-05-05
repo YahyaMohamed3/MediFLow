@@ -1,0 +1,78 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  Doctor's schedule
+{% endblock %}
+
+{% block main %}
+<head>
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+</head>
+<div class="container">
+  <div id="arrow-container" style="margin-top:10rem;">
+    <a href="javascript:void(0)" id="arrow-link">
+      <i class='bx bx-arrow-back' style="font-size:2rem; color:#80808082; margin-left:3rem;"></i>
+    </a>
+  </div>
+</div>
+<div class="table-responsive" style="margin-top: 2rem;">
+  <table class="content-table" id="patientTable">
+    <thead>
+      <tr>
+        <th>Day</th>
+        <th>Start</th>
+        <th>End</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for time in times %}
+      <tr>
+        <td>{{ time[2] }}</td>
+        <td>{{ time[3] | military_to_standard_time}}</td>
+        <td>{{ time[4] | military_to_standard_time}}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block additional_styles %}
+<style>
+  .container {
+    position: relative;
+  }
+
+  #arrow-container {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+  }
+
+  .logo-container {
+    /* Adjust the styles for your logo container as needed */
+    position: absolute;
+    top: 10px; /* Adjust this value to position the logo vertically */
+    right: 10px; /* Adjust this value to position the logo horizontally */
+  }
+</style>
+{% endblock %}
+
+{% block additional_scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    // Attach click event listener to the arrow link
+    document.getElementById("arrow-link").addEventListener("click", function(event) {
+      // Prevent default behavior of the link
+      event.preventDefault();
+      // Call goBack function when arrow link is clicked
+      goBack();
+    });
+
+    // Define goBack function
+    function goBack() {
+      window.history.back();
+    }
+  });
+</script>
+{% endblock %}

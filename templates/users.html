@@ -1,0 +1,143 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Users
+{% endblock %}
+
+{% block main %}
+<head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+</head>
+<style>
+    .oval-input {
+        border-radius: 50px; /* Adjust border-radius to make it oval-shaped */
+        height: 45px; /* Adjust height of the input field */
+        padding: 10px 20px; /* Adjust padding of the input field */
+        font-size: 1.2rem; /* Adjust font size of the input field */
+    }
+</style>
+
+<h1 style="text-align:left; margin-top:3rem; text-align:center;">Manage users</h1>
+<div class="container">
+    <div class="row">
+        <div class="col-md-6 offset-md-3">
+            <form action="" method="GET">
+                <div class="input-group mb-2" style="max-width:80rem;">
+                    <input type="text" class="form-control oval-input" placeholder="Search for users..." id="searchInput" autocomplete="off">
+                    <button class="btn btn-primary" type="submit" onclick="searchTable()"><i class='bx bx-search' style="font-size: 1.5rem;"></i></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="table-responsive">
+<table style="margin-top:3rem;"class="content-table" id="patientTable">
+    <thead>
+        <tr>
+            <th>Actions</th>
+            <th>First Name</th>
+            <th>Last Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Position</th>
+            <th>Payroll</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+        <tr>
+            <td><button class="btn btn-outline-danger delete-user-btn" data-user-id="{{ user[0] }}">Remove</button></td>
+            <td>{{ user[3] }}</td>
+            <td>{{ user[4] }}</td>
+            <td>{{ user[1] }}</td>
+            <td>{{ user[10]| format_phone }}</td>
+            <td>{{ user[5] }}</td>
+            <td>{{ user[6] }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div style="display:flex;justify-content: center;">
+  <ul class="pagination">
+    {% if page > 1 %}
+    <li class="page-item">
+        <a class="page-link" href="?page={{ page - 1 }}" aria-label="Previous">
+            <span aria-hidden="true">Previous</span>
+        </a>
+    </li>
+    {% endif %}
+
+    {% for num in range(1, total_pages + 1) %}
+    <li class="page-item {% if num == page %}active{% endif %}">
+        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+    </li>
+    {% endfor %}
+
+    {% if page < total_pages %}
+    <li class="page-item">
+        <a class="page-link" href="?page={{ page + 1 }}" aria-label="Next">
+            <span aria-hidden="true">Next</span>
+        </a>
+    </li>
+    {% endif %}
+  </ul>
+<script>
+const deleteDoctorButtons = document.querySelectorAll('.delete-user-btn');
+
+// Add click event listener to each button
+deleteDoctorButtons.forEach(button => {
+  button.addEventListener('click', () => {
+    // Get user ID from data-user-id attribute
+    const userId = button.getAttribute('data-user-id');
+    const confirmation = confirm('Are you sure you want to delete this doctor?');
+
+    if (confirmation) {
+      fetch(`/delete_user/${userId}`, {
+        method: 'DELETE', // Assuming you're using DELETE method to delete the doctor
+        headers: {
+          'Content-Type': 'application/json' // Set appropriate content type
+        }
+      })
+      .catch(error => {
+        // Handle network errors
+        console.error('Network error:', error);
+      })
+      .finally(() => {
+        // Redirect to view_doctors page after attempting to delete the doctor
+        window.location.href = '/users';
+      });
+    }
+  });
+});
+// Function to perform search
+function searchTable() {
+    // Declare variables
+    var input, filter, table, tr, td, i, txtValue;
+    input = document.getElementById("searchInput");
+    filter = input.value.toUpperCase();
+    table = document.getElementById("patientTable");
+    tr = table.getElementsByTagName("tr");
+
+    // Loop through all table rows, and hide those who don't match the search query
+    for (i = 0; i < tr.length; i++) {
+        td = tr[i].getElementsByTagName("td");
+        for (var j = 0; j < td.length; j++) {
+            if (td[j]) {
+                txtValue = td[j].textContent || td[j].innerText;
+                if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                    tr[i].style.display = "";
+                    break;
+                } else {
+                    tr[i].style.display = "none";
+                }
+            }
+        }
+    }
+}
+
+// Event listener for search input
+document.getElementById("searchInput").addEventListener("keyup", searchTable);
+</script>
+{% endblock %}

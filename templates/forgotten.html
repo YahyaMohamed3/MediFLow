@@ -1,0 +1,44 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Password recovery
+{% endblock %}
+
+{% block main %}
+<head>
+    <style>
+        .bx {
+            font-size: 66px; /* Adjust the size as needed */
+        }
+    </style>
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+</head>
+<form method="POST">
+<main class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card center-card">
+                <div class="login-box">
+                    <div class="login-header">
+            <header>
+                <i class='bx bx-lock-alt'></i>
+            </header>
+        </div>
+        <div class="input-box">
+            <h3 style = "text-align:center;">Trouble With logging in?</h3>
+            <p style="text-align:center;">Enter your email address and we'll send you a link to get back into your account </p>
+            <input style="margin-top:15px;" type="email" name = "email" class="input-field" placeholder="Email" autocomplete="off" required>
+        </div>
+        {% if error_message %}
+            <p style="margin-left:1.5rem;"class ="error-message">{{ error_message }}</p>
+            {% endif %}
+        <div class="input-submit" style="margin-top:5px; margin-left:3.2rem; width:70%;">
+            <button class="submit-btn" id="submit"></button>
+            <label for="submit">Send Link</label>
+        </div>
+    </div>
+</form>
+</div>
+</div>
+</div>
+{% endblock %}

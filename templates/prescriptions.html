@@ -1,0 +1,249 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  Patient Documents
+{% endblock %}
+
+{% block main %}
+<head>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <style>
+    #lil:before {
+      text-decoration: none;
+      color: black;
+    }
+    #lil:after{
+      content: "";
+      position: absolute;
+      background-color:#4070f4;
+      height: 3px;
+      width:0;
+      left:0;
+      bottom: -10px;
+    }
+    #lil:hover:after{
+      width:100%;
+    }
+  </style>
+</head>
+<header class="container">
+  <div class="container" style="display:flex;">
+    <h1 style="margin-top:2rem; text-align:left;">Prescriptions</h1>
+  </div>
+  <h2 style="text-align:left; margin-top:1rem;">{{ personal[0][1] if personal else '' }}</h2>
+  <p style="text-align:left;"> {{personal[0][5] | format_phone if personal else ''}} | {{personal[0][6] if personal else ''}}</p>
+  <p id="patient-id" style="text-align:left;">ID #{{ personal[0][0] if personal else '' }}</p>
+  {% if error_message %}
+  <p class="error-message">{{ error_message }}</p>
+  {% endif %}
+</header>
+<div class="container d-flex justify-content-between align-items-center py-3">
+  <li class="list-group-item"><a id="lil" href="/details_patients?data-patient-id={{ personal[0][0] if personal else '' }}">Overview</a></li>
+  <li class="list-group-item"><a id="lil" href="/payments?data-patient-id={{personal[0][0] if personal else ''}}">Payments</a></li>
+  <li class="list-group-item"><a id="lil" href="/patient_app?data-patient-id={{personal[0][0] if personal else ''}}">Appointments</a></li>
+  <li class="list-group-item"><a id="lil" href="/prescriptions?data-patient-id={{personal[0][0] if personal else ''}}">Prescriptions</a></li>
+  <li class="list-group-item"><a id="lil" href="/upload?data-patient-id={{personal[0][0] if personal else ''}}">Patient Documents</a></li>
+</div>
+<hr>
+<style>
+
+
+  .submit-button:hover {
+      background-color: black ;
+      color: white;
+      transition: background-color 0.3s ease-out, color 0.3s ease-out;
+  }
+
+  @media (max-width: 768px) {
+      .form-group {
+          width: 100%;
+      }
+  }
+.oval-input {
+      border-radius: 50px; /* Adjust border-radius to make it oval-shaped */
+      height: 45px; /* Adjust height of the input field */
+      padding: 10px 20px; /* Adjust padding of the input field */
+      font-size: 1.2rem; /* Adjust font size of the input field */
+  }
+</style>
+<div class="container" style="margin-top:3rem;">
+<h1>Current Medications</h1>
+</div>
+<div class="table-responsive">
+  <table class="content-table" id="patientTable" style="margin-bottom:3rem;">
+      <thead>
+          <tr>
+              <th>Medication</th>
+              <th>Dosage</th>
+              <th>Instructions</th>
+              <th>Date prescribed</th>
+          </tr>
+      </thead>
+      <tbody>
+          <tr>
+          {% for prescription in prescriptions %}
+          <td>{{prescription[0]}}</td>
+          <td>{{prescription[1]}}</td>
+          <td>{{prescription[2]}}</td>
+          <td>{{prescription[3]}}</td>
+          </tr>
+          {% endfor %}
+      </tbody>
+  </table>
+</div>
+</div>
+<div style="display:flex;align-content: stretch;flex-direction: row;justify-content: center;">
+  <ul class="pagination">
+      {% if page > 1 %}
+      <li class="page-item">
+          <a class="page-link" href="?page=1" aria-label="First">
+              <span aria-hidden="true">««</span>
+          </a>
+      </li>
+      <li class="page-item">
+          <a class="page-link" href="?page={{ page - 1 }}" aria-label="Previous">
+              <span aria-hidden="true">«</span>
+          </a>
+      </li>
+      {% endif %}
+
+      {% for num in range(1, total_pages + 1) %}
+      <li class="page-item {% if num == page %}active{% endif %}">
+          <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+      </li>
+      {% endfor %}
+
+      {% if page < total_pages %}
+      <li class="page-item">
+          <a class="page-link" href="?page={{ page + 1 }}" aria-label="Next">
+              <span aria-hidden="true">»</span>
+          </a>
+      </li>
+      <li class="page-item">
+          <a class="page-link" href="?page={{ total_pages }}" aria-label="Last">
+              <span aria-hidden="true">»»</span>
+          </a>
+      </li>
+      {% endif %}
+  </ul>
+</div>
+<hr>
+<h1>History of medications</h1>
+<div class="table-responsive">
+  <table class="content-table" id="patientTable" style="margin-bottom:3rem;">
+      <thead>
+          <tr>
+              <th>Medication</th>
+              <th>Dosage</th>
+              <th>Instructions</th>
+              <th>Date prescribed</th>
+          </tr>
+      </thead>
+      <tbody>
+          <tr>
+          {% for history_prescription in history_prescriptions %}
+          <td>{{history_prescription[0]}}</td>
+          <td>{{history_prescription[1]}}</td>
+          <td>{{history_prescription[2]}}</td>
+          <td>{{history_prescription[3]}}</td>
+          </tr>
+          {% endfor %}
+      </tbody>
+  </table>
+</div>
+</div>
+<div style="display:flex;align-content: stretch;flex-direction: row;justify-content: center;">
+  <ul class="pagination">
+      {% if page > 1 %}
+      <li class="page-item">
+          <a class="page-link" href="?page=1" aria-label="First">
+              <span aria-hidden="true">««</span>
+          </a>
+      </li>
+      <li class="page-item">
+          <a class="page-link" href="?page={{ page - 1 }}" aria-label="Previous">
+              <span aria-hidden="true">«</span>
+          </a>
+      </li>
+      {% endif %}
+
+      {% for num in range(1, total_pages + 1) %}
+      <li class="page-item {% if num == page %}active{% endif %}">
+          <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+      </li>
+      {% endfor %}
+
+      {% if page < total_pages %}
+      <li class="page-item">
+          <a class="page-link" href="?page={{ page + 1 }}" aria-label="Next">
+              <span aria-hidden="true">»</span>
+          </a>
+      </li>
+      <li class="page-item">
+          <a class="page-link" href="?page={{ total_pages }}" aria-label="Last">
+              <span aria-hidden="true">»»</span>
+          </a>
+      </li>
+      {% endif %}
+  </ul>
+</div>
+
+<script>
+  // Function to toggle between viewing and editing mode
+  function toggleEditMode() {
+    const editBtn = document.getElementById('editBtn');
+    const fieldsToEdit = document.querySelectorAll('span:not(#editHeader):not(.nav-link):not(.logo-name)');
+    const patientIdSpan = document.getElementById('patient-id');
+    const patientId = patientIdSpan ? patientIdSpan.innerText.match(/\d+/)[0] : null; // Extract patient ID
+
+    if (editBtn.innerText === 'Edit') {
+      editBtn.innerText = 'Save Changes';
+      fieldsToEdit.forEach(field => {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'text');
+        input.setAttribute('value', field.innerText);
+        field.innerText = '';
+        field.appendChild(input);
+      });
+    } else {
+      editBtn.innerText = 'Edit';
+      const updatedData = {};
+      fieldsToEdit.forEach(field => {
+        updatedData[field.id] = field.firstChild.value;
+        field.innerText = field.firstChild.value;
+      });
+
+      if (patientId) {
+        // Include the patient ID in the updated data
+        updatedData['patient_id'] = patientId;
+
+        console.log(updatedData); // Log updated data (you can send it to the backend here)
+
+        // Send all data to the backend
+        fetch('/details_patients', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(updatedData)
+        })
+        .then(response => {
+          if (response.ok) {
+            console.log('Data sent to the backend successfully');
+          } else {
+            console.error('Failed to send data to the backend');
+          }
+        })
+        .catch(error => console.error('Error:', error));
+      } else {
+        console.error('Patient ID not found');
+      }
+    }
+  }
+
+
+
+  // Add click event listener to the Edit button
+  document.getElementById('editBtn').addEventListener('click', toggleEditMode);
+</script>
+{% endblock %}

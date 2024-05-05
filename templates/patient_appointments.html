@@ -1,0 +1,201 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  Patient Appointments
+{% endblock %}
+
+{% block main %}
+<head>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <style>
+    #lil:before {
+      text-decoration: none;
+      color: black;
+    }
+    #lil:after{
+      content: "";
+      position: absolute;
+      background-color:#4070f4;
+      height: 3px;
+      width:0;
+      left:0;
+      bottom: -10px;
+    }
+    #lil:hover:after{
+      width:100%;
+    }
+    .oval-input {
+            border-radius: 50px; /* Adjust border-radius to make it oval-shaped */
+            height: 45px; /* Adjust height of the input field */
+            padding: 10px 20px; /* Adjust padding of the input field */
+            font-size: 1.2rem; /* Adjust font size of the input field */
+        }
+  </style>
+</head>
+<header class="container">
+  <div class="container" style="display:flex;">
+    <h1 style="margin-top:2rem; text-align:left;">Payments</h1>
+  </div>
+  <h2 style="text-align:left; margin-top:1rem;">{{ personal[0][1] if personal else '' }}</h2>
+  <p style="text-align:left;"> {{personal[0][5] | format_phone if personal else ''}} | {{personal[0][6] if personal else ''}}</p>
+  <p id="patient-id" style="text-align:left;">ID #{{ personal[0][0] if personal else '' }}</p>
+  {% if error_message %}
+  <p class="error-message">{{ error_message }}</p>
+  {% endif %}
+</header>
+<div class="container d-flex justify-content-between align-items-center py-3">
+  <li class="list-group-item"><a id="lil" href="/details_patients?data-patient-id={{ personal[0][0] if personal else '' }}">Overview</a></li>
+  <li class="list-group-item"><a id="lil" href="/payments?data-patient-id={{personal[0][0] if personal else ''}}">Payments</a></li>
+  <li class="list-group-item"><a id="lil" href="/patient_app?data-patient-id={{personal[0][0] if personal else ''}}">Appointments</a></li>
+  <li class="list-group-item"><a id="lil" href="/prescriptions?data-patient-id={{personal[0][0] if personal else ''}}">Prescriptions</a></li>
+  <li class="list-group-item"><a id="lil" href="/upload?data-patient-id={{personal[0][0] if personal else ''}}">Patient Documents</a></li>
+</div>
+<hr>
+<h1 style="text-align:center; margin-top:5rem;">Appointments</h1>
+<div class="container">
+    <div class="row">
+        <div class="col-md-6 offset-md-3">
+            <form action="" method="GET">
+                <div class="input-group mb-2" style="max-width:80rem;">
+                    <input type="text" class="form-control oval-input" placeholder="Search for Appointments..." id="searchInput" autocomplete="off">
+                    <button class="btn btn-primary" type="submit" onclick="searchTable()"><i class='bx bx-search' style="font-size: 1.5rem;"></i></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="table-responsive">
+    <table class="content-table" id="patientTable">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Doctor</th>
+                <th>Specialization</th>
+                <th>Time</th>
+                <th>Reason</th>
+                <th>Confirmation</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for appointment in appointments %}
+            <tr>
+                <td>{{ appointment[0] }}</td>
+                <td>{{ appointment[2] }}</td>
+                <td>{{ appointment[3] }}</td>
+                <td>{{ appointment[4] | military_to_standard_time }}</td>
+                <td>{{ appointment[5] }}</td>
+            {% if appointment[6] == 1 %}
+                <td>Confirmed</td>
+                {% else %}
+                <td>
+                    <select class="confirmedStatus" onchange="updateConfirmationStatus(this)" data-appointment-id="{{ appointment[1] }}">
+                        <option value="0">Not Confirmed</option>
+                        <option value="1">Confirmed</option>
+                    </select>
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div style="display:flex;align-content: stretch;flex-direction: row;justify-content: center;">
+  <ul class="pagination">
+      {% if page > 1 %}
+      <li class="page-item">
+          <a class="page-link" href="?data-patient-id={{ patient }}&page=1" aria-label="First">
+              <span aria-hidden="true">««</span>
+          </a>
+      </li>
+      <li class="page-item">
+          <a class="page-link" href="?data-patient-id={{ patient }}&page={{ page - 1 }}" aria-label="Previous">
+              <span aria-hidden="true">«</span>
+          </a>
+      </li>
+      {% endif %}
+
+      {% for num in range(1, total_pages + 1) %}
+      <li class="page-item {% if num == page %}active{% endif %}">
+          <a class="page-link" href="?data-patient-id={{ patient }}&page={{ num }}">{{ num }}</a>
+      </li>
+      {% endfor %}
+
+      {% if page < total_pages %}
+      <li class="page-item">
+          <a class="page-link" href="?data-patient-id={{ patient }}&page={{ page + 1 }}" aria-label="Next">
+              <span aria-hidden="true">»</span>
+          </a>
+      </li>
+      <li class="page-item">
+          <a class="page-link" href="?data-patient-id={{ patient }}&page={{ total_pages }}" aria-label="Last">
+              <span aria-hidden="true">»»</span>
+          </a>
+      </li>
+      {% endif %}
+  </ul>
+</div>
+<script>
+
+function updateConfirmationStatus(selectElement) {
+    // Get the appointment ID and the new confirmation status
+    var appointmentId = selectElement.dataset.appointmentId;
+    var newStatus = selectElement.value;
+    var currentUrl = window.location.href;
+    var url = new URL(currentUrl);
+    // Create a URLSearchParams object with the current URL
+    var searchParams = url.searchParams;
+
+    // Get the patient ID from the URL query parameters
+    var patientId = searchParams.get('data-patient-id');
+
+    // Send an AJAX request to update the confirmation status
+    fetch('/update_confirmation_status', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            appointmentId: appointmentId,
+            newStatus: newStatus,
+            patientId: patientId
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        // Handle the response if needed
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+// Function to perform search
+function searchTable() {
+    // Declare variables
+    var input, filter, table, tr, td, i, txtValue;
+    input = document.getElementById("searchInput");
+    filter = input.value.toUpperCase();
+    table = document.getElementById("patientTable");
+    tr = table.getElementsByTagName("tr");
+
+    // Loop through all table rows, and hide those who don't match the search query
+    for (i = 0; i < tr.length; i++) {
+        td = tr[i].getElementsByTagName("td");
+        for (var j = 0; j < td.length; j++) {
+            if (td[j]) {
+                txtValue = td[j].textContent || td[j].innerText;
+                if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                    tr[i].style.display = "";
+                    break;
+                } else {
+                    tr[i].style.display = "none";
+                }
+            }
+        }
+    }
+}
+document.getElementById("searchInput").addEventListener("keyup", searchTable);
+</script>
+
+{% endblock %}

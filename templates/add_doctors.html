@@ -1,0 +1,293 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Add Doctor
+{% endblock %}
+
+{% block main %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+<style>
+    .doctor-form-container {
+        width: 90%;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        border: 2px solid #0000;
+        border-radius: 10px;
+        background-color: #f8f9fa00;
+    }
+
+    .doctor-form-title {
+        text-align: center;
+        margin-bottom: 20px;
+        color: #000;
+    }
+
+    .form-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+
+    .form-group {
+        width: 48%;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 5px;
+        color: #000;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+
+    .submit-button {
+        width: 100%;
+        background-color: #4070f4;
+        color: #fff;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s ease-in, color 0.3s ease-in;
+    }
+
+    .submit-button:hover {
+        background-color: black;
+        color: white;
+        transition: background-color 0.3s ease-out, color 0.3s ease-out;
+    }
+
+    @media (max-width: 768px) {
+        .form-row {
+            flex-direction: column;
+        }
+
+        .form-group {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="doctor-form-container">
+    <form method="POST" id="newDoctorForm" class="needs-validation" novalidate>
+        {% if error_messages %}
+            <div class="alert alert-danger" role="alert">
+                {% for error_message in error_messages %}
+                    <p>{{ error_message }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+        <h2 class="doctor-form-title">New Doctor Information</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="text" id="newFirstName" name="new_first" autocomplete="off" class="form-control" placeholder="First Name" required>
+                    <label for="newFirstName">First Name</label>
+                    <div class="invalid-feedback">Please provide a first name.</div>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="text" id="newLastName" name="new_last" autocomplete="off" class="form-control" placeholder="Last Name" required>
+                    <label for="newLastName">Last Name</label>
+                    <div class="invalid-feedback">Please provide a last name.</div>
+                </div>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="email" id="newEmail" name="new_email" autocomplete="off" class="form-control" placeholder="Email" required>
+                    <label for="newEmail">Email</label>
+                    <div class="invalid-feedback">Please provide a valid email address.</div>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="tel" id="newPhone" name="new_phone" autocomplete="off" class="form-control" placeholder="Phone Number" required>
+                    <label for="newPhone">Phone Number</label>
+                    <div class="invalid-feedback">Please provide a valid phone number.</div>
+                </div>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="number" id="docExp" name="doc_exp" autocomplete="off" class="form-control" placeholder="Years of Experience" required>
+                    <label for="docExp">Years of Experience</label>
+                    <div class="invalid-feedback">Please provide years of experience.</div>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="text" id="newAddress" name="new_address" autocomplete="off" class="form-control" placeholder="Address" required>
+                    <label for="newAddress">Address</label>
+                    <div class="invalid-feedback">Please provide an address.</div>
+                </div>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="password" id="docPassword" name="doc_password" autocomplete="off" class="form-control" placeholder="Password" required>
+                    <label for="docPassword">Password</label>
+                    <div class="invalid-feedback">Please provide password.</div>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="password" id="confirmDoc" name="confirm_doc" autocomplete="off" class="form-control" placeholder="Confirm Password" required>
+                    <label for="confirmDoc">Confirm Password</label>
+                    <div class="invalid-feedback">Please confirm password.</div>
+                </div>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="text" id="newSpecialization" name="new_special" autocomplete="off" class="form-control" placeholder="Specialization" required>
+                    <label for="newSpecialization">Specialization</label>
+                    <div class="invalid-feedback">Please provide specialization</div>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="text" id="newPayroll" name="new_pay" autocomplete="off" class="form-control" placeholder="Payroll" required>
+                    <label for="newPayroll">Payroll</label>
+                    <div class="invalid-feedback">Please provide a payroll amount.</div>
+                </div>
+            </div>
+        </div>
+                <div class="col-12" style="margin-bottom:2rem;">
+                    <select id="day-select" class="form-control" name="days" required>
+                        <option value="" disabled selected>Select working days</option>
+                        <option value="monday">Monday</option>
+                        <option value="tuesday">Tuesday</option>
+                        <option value="wednesday">Wednesday</option>
+                        <option value="thursday">Thursday</option>
+                        <option value="friday">Friday</option>
+                        <option value="saturday">Saturday</option>
+                        <option value="sunday">Sunday</option>
+                    </select>
+        </div>
+        <!-- Repeat the above block for each day of the week, changing the class and IDs accordingly -->
+        <div class="form-row work-hours-fields monday" style="display: none;">
+            <div class="form-group">
+                <label for="activeHoursStartMonday">Work Hours Start</label>
+                <input type="time" name="monday_start" id="activeHoursStartMonday" class="form-control work-hours-start">
+            </div>
+            <div class="form-group">
+                <label for="activeHoursEndMonday">Work Hours End</label>
+                <input type="time" name="monday_end" id="activeHoursEndMonday" class="form-control work-hours-end">
+            </div>
+        </div>
+        <div class="form-row work-hours-fields tuesday" style="display: none;">
+            <div class="form-group">
+                <label for="activeHoursStartTuesday">Work Hours Start</label>
+                <input type="time" name="tuesday_start" id="activeHoursStartTuesday" class="form-control work-hours-start" >
+            </div>
+            <div class="form-group">
+                <label for="activeHoursEndTuesday">Work Hours End</label>
+                <input type="time" name="tuesday_end" id="activeHoursEndTuesday" class="form-control work-hours-end">
+            </div>
+        </div>
+        <div class="form-row work-hours-fields wednesday" style="display: none;">
+            <div class="form-group">
+                <label for="activeHoursStartWednesday">Work Hours Start</label>
+                <input type="time" name="wednesday_start" id="activeHoursStartWednesday" class="form-control work-hours-start">
+            </div>
+            <div class="form-group">
+                <label for="activeHoursEndWednesday">Work Hours End</label>
+                <input type="time" name="wednesday_end" id="activeHoursEndWednesday" class="form-control work-hours-end">
+            </div>
+        </div>
+        <div class="form-row work-hours-fields thursday" style="display: none;">
+            <div class="form-group">
+                <label for="activeHoursStartThursday">Work Hours Start</label>
+                <input type="time" name="thursday_start" id="activeHoursStartThursday" class="form-control work-hours-start">
+            </div>
+            <div class="form-group">
+                <label for="activeHoursEndThursday">Work Hours End</label>
+                <input type="time" name="thursday_end" id="activeHoursEndThursday" class="form-control work-hours-end">
+            </div>
+        </div>
+        <div class="form-row work-hours-fields friday" style="display: none;">
+            <div class="form-group">
+                <label for="activeHoursStartFriday">Work Hours Start</label>
+                <input type="time" name="friday_start" id="activeHoursStartFriday" class="form-control work-hours-start">
+            </div>
+            <div class="form-group">
+                <label for="activeHoursEndFriday">Work Hours End</label>
+                <input type="time" name="friday_end" id="activeHoursEndFriday" class="form-control work-hours-end">
+            </div>
+        </div>
+        <div class="form-row work-hours-fields saturday" style="display: none;">
+            <div class="form-group">
+                <label for="activeHoursStartSaturday">Work Hours Start</label>
+                <input type="time" name="saturday_start" id="activeHoursStartSaturday" class="form-control work-hours-start">
+            </div>
+            <div class="form-group">
+                <label for="activeHoursEndSaturday">Work Hours End</label>
+                <input type="time" name="saturday_end" id="activeHoursEndSaturday" class="form-control work-hours-end">
+            </div>
+        </div>
+        <div class="form-row work-hours-fields sunday" style="display: none;">
+            <div class="form-group">
+                <label for="activeHoursStartSunday">Work Hours Start</label>
+                <input type="time" name="sunday_start" id="activeHoursStartSunday" class="form-control work-hours-start">
+            </div>
+            <div class="form-group">
+                <label for="activeHoursEndSunday">Work Hours End</label>
+                <input type="time" name="sunday_end" id="activeHoursEndSunday" class="form-control work-hours-end">
+            </div>
+        </div>
+        <button type="submit" class="submit-button">Add New Doctor</button>
+    </form>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Fetch the form you want to apply custom Bootstrap validation styles to
+    const form = document.getElementById('newDoctorForm');
+
+    // Handle form submission
+    form.addEventListener('submit', function(event) {
+        // Check if the form is valid according to Bootstrap validation
+        if (!form.checkValidity()) {
+            // Prevent the default form submission
+            event.preventDefault();
+            // Stop event propagation
+            event.stopPropagation();
+        }
+        // Add Bootstrap's 'was-validated' class to enable custom validation styles
+        form.classList.add('was-validated');
+    });
+
+    // Show/hide work hours fields based on selected day
+    document.getElementById('day-select').addEventListener('change', function() {
+        var selectedDay = this.value;
+        var workHoursFields = document.querySelectorAll('.work-hours-fields');
+
+        // Hide all work hours fields
+        workHoursFields.forEach(function(field) {
+            field.style.display = 'none';
+        });
+
+        // Show work hours fields for the selected day
+        if (selectedDay !== '') {
+            var dayFields = document.querySelectorAll('.work-hours-fields.' + selectedDay);
+            dayFields.forEach(function(field) {
+                field.style.display = 'flex';
+            });
+        }
+    });
+});
+
+</script>
+{% endblock %}

@@ -1,0 +1,445 @@
+/* Sidebar Styles */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500&display=swap');
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+nav{
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 70px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    background: #fff;
+    box-shadow: 0 0 1px rgba(0, 0, 0, 0.1);
+    z-index:2;
+}
+
+nav .logo{
+    display: flex;
+    align-items: center;
+    margin: 0 24px;
+}
+.logo .menu-icon{
+    color: #333;
+    font-size: 24px;
+    margin-right: 14px;
+    cursor: pointer;
+}
+.logo .logo-name{
+    color: #333;
+    font-size:22px;
+    font-weight: 500;
+}
+nav .sidebar {
+    position: fixed;
+    top: 0;
+    z-index:2;
+    left: -100%;
+    height: 100%;
+    width: 230px;
+    padding: 20px 0;
+    background-color: #fff;
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease-in;
+}
+ul.lists{
+    padding-left: 0rem;
+}
+
+nav.open .sidebar{
+    left: 0;
+    transition: right 0.3s ease-in;
+}
+nav.close .sidebar{
+    left: -100%;
+    transition: left 0.3s ease-out;
+}
+main {
+    transition: left 0.3s ease; /* Add transition for smooth animation */
+}
+
+nav.open + main {
+    margin-left: 260px; /* Adjust margin when navbar is open */
+    transition: 0.3 all ease-in;
+}
+
+
+
+.sidebar .sidebar-content {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 30px 16px;
+}
+
+.sidebar-content .list{
+    list-style: none;
+
+}
+
+.list .nav-link{
+    display: flex;
+    align-items: center;
+    padding: 14px 12px;
+    border-radius: 8px;
+    text-decoration: none;
+}
+.nav-link:hover{
+    background-color: #4070f4;
+}
+
+.nav-link .icon{
+    margin-right: 14px;
+    font-size: 20px;
+    color:#000000;
+}
+.nav-link .link {
+    font-size: 16px;
+    color: #000000;
+    font-weight: 400;
+}
+
+.nav-link:hover .icon,
+.nav-link:hover .link{
+    color: #fff;
+}
+
+.login-box {
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    width: 440px;
+    height: 700px;
+    padding: 30px;
+}
+
+.login-header {
+    text-align: center;
+    margin: 20px 0 40px 0;
+}
+
+.login-header header {
+    color: #333;
+    font-size: 30px;
+    font-weight: 600;
+}
+
+.input-box .input-field {
+    width: 100%;
+    height: 60px;
+    font-size: 17px;
+    padding: 0 25px;
+    margin-bottom: 15px;
+    border-radius: 30px;
+    border: none;
+    box-shadow: 0px 5px 10px 1px rgba(0, 0, 0, 0.05);
+    outline: none;
+    transition: .3s;
+}
+
+::placeholder {
+    font-weight: 500;
+    color: #222;
+}
+
+.input-field:focus {
+    width: 105%;
+}
+
+.forgot {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 40px;
+}
+
+section {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    color: #555;
+}
+
+#check {
+    margin-right: 10px;
+}
+
+a {
+    text-decoration: none;
+}
+
+.forgot a:hover {
+    text-decoration:none;
+
+}
+section a {
+    color: #555;
+}
+
+.input-submit {
+    position: relative;
+}
+
+
+
+.input-submit label {
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    color: #fff;
+    -webkit-transform: translate(-50%, -50%);
+    -ms-transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+}
+
+.submit-btn:hover {
+    background: #000;
+    transform: scale(1.05, 1);
+}
+
+.sign-up-link {
+    text-align: center;
+    font-size: 15px;
+    margin-top: 20px;
+}
+
+.sign-up-link a {
+    color: #000;
+    font-weight: 600;
+}
+
+body {
+    height: 100%;
+    margin: 0;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-color: #fcfcfc;
+}
+
+
+.submit-btn {
+    position: relative;
+    width:100%;
+    z-index: 0;
+    height: 60px;
+    background: #4070f4;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: .3s;
+}
+
+
+
+.error-message {
+    color: red; /* Set the color of the error message text */
+
+}
+
+
+.error-messages {
+    color:red;
+}
+
+.content-table {
+    border-collapse: collapse;
+    margin: 25px auto; /* Centering the table horizontally */
+    font-size: 1rem;
+    min-width: 70rem;
+    border-radius: 5px 5px 0 0;
+    overflow: hidden;
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.1);
+    outline: 1px solid #d3d3d3;
+    border-radius:10px;
+}
+
+.content-table thead tr {
+    background-color: transparent;
+    color: #000;
+    text-align: left;
+    border-bottom: 0.5px solid #d3d3d3;
+
+}
+
+.content-table th,
+.content-table td {
+    padding: 35px 15px;
+    text-align:left;
+}
+
+.content-table tbody tr {
+    border-bottom: 0.5px solid #d3d3d3;
+}
+
+.content-table tbody tr:nth-of-type(even) {
+    background-color: transparent;
+
+}
+
+.content-table tbody tr:last-of-type {
+    border-bottom: 1px solid #d3d3d3  ;
+}
+
+.content-table tbody tr.active-row {
+    color: #003870;
+}
+
+
+.center-card {
+    margin-left: auto;
+    margin-right: auto;
+    width: 27rem;
+    height: 36rem;
+}
+.container-statistics {
+    display: flex;
+    margin-right:15px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .statistic-card {
+    margin-top: 30px;
+    flex-grow: 1;
+  }
+
+  @media (max-width: 768px) {
+    .statistic-card {
+      width: calc(50% - 20px);
+    }
+  }
+
+  @media (max-width: 576px) {
+    .statistic-card {
+      width: calc(100% - 20px);
+    }
+  }
+
+
+  .patient-form-container {
+    width: 90%;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+    border: 2px solid #0000;
+    border-radius: 10px;
+    background-color: #f8f9fa00;
+}
+
+
+.wrapper header{
+    display: flex;
+    align-items: center;
+    padding: 25px 30px 10px;
+    justify-content: space-between;
+  }
+  header .icons{
+    display: flex;
+  }
+  header .icons span{
+    height: 38px;
+    width: 38px;
+    margin: 0 1px;
+    cursor: pointer;
+    color: #878787;
+    text-align: center;
+    line-height: 38px;
+    font-size: 1.9rem;
+    user-select: none;
+    border-radius: 50%;
+  }
+  .icons span:last-child{
+    margin-right: -10px;
+  }
+  header .icons span:hover{
+    background: #f2f2f2;
+  }
+  header .current-date{
+    font-size: 1.45rem;
+    font-weight: 500;
+  }
+  .calendar{
+    padding: 20px;
+  }
+  .calendar ul{
+    display: flex;
+    flex-wrap: wrap;
+    list-style: none;
+    text-align: center;
+  }
+  .calendar .days{
+    margin-bottom: 20px;
+  }
+  .calendar li{
+    color: #333;
+    width: calc(100% / 7);
+    font-size: 1.07rem;
+  }
+  .calendar .weeks li{
+    font-weight: 500;
+    cursor: default;
+  }
+  .calendar .days li{
+    z-index: 1;
+    cursor: pointer;
+    position: relative;
+    margin-top: 30px;
+  }
+  .days li.inactive{
+    color: #aaa;
+  }
+  .days li.active{
+    color: #fff;
+  }
+  .days li::before{
+    position: absolute;
+    content: "";
+    left: 50%;
+    top: 50%;
+    height: 40px;
+    width: 40px;
+    z-index: -1;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .days li.active::before{
+    background: #0d6efd;
+  }
+  .days li:not(.active):hover::before{
+    background: #f2f2f2;
+  }
+
+
+  #lil {
+    text-decoration:none;
+    color:black;
+  }
+
+ #lil :hover{
+    color:#4070f4;
+  }
+
+  .alert{
+    margin-top:5rem;
+    z-index:-3;
+  }
+
+  .submit-button {
+    width: 100%;
+    background-color: #4070f4;
+    color: #fff;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: background-color 0.3s ease-in, color 0.3s ease-in;
+}
+.arrow-icon {
+  font-size: 25px; /* Adjust the size of the arrow icon */
+}

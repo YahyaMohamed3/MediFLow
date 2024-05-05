@@ -1,0 +1,345 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Dashboard
+{% endblock %}
+
+{% block main %}
+<head>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .container-statistics {
+            display: flex;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .statistic {
+            display: inline-block;
+            margin-right: 20px;
+        }
+
+        .statistic-card {
+            width: 32rem;
+        }
+
+        .card-body {
+            height: 30rem;
+        }
+  </style>
+</head>
+<main class="container py-5 text-center" style="display: flex; flex-direction: column; align-items: center;">
+  <h1 style="margin-top:1.5rem; text-align:center;">Dashboard</h1>
+  <div style="display: flex; flex-wrap: wrap; justify-content: center;">
+    <div style="display: inline-block; margin-right: 25px;">
+      <div class="card" style="width: 10rem; margin-top: 30px; background-color: rgba(223, 227, 238, 0.4); border: none;">
+        <div class="card-body" style="height: 7rem;">
+          <h6 class="card-subtitle mb-2 text-body-secondary">Total patients</h6>
+          <h4 style="margin-top:2.3rem;">{{patients_count}}</h4>
+        </div>
+      </div>
+    </div>
+    <div style="display: inline-block;  margin-right:25px">
+      <div class="card" style="width: 10rem; margin-top: 30px; background-color: rgba(223, 227, 238, 0.4); border: none;">
+        <div class="card-body" style="height: 7rem;">
+          <h6 class="card-subtitle mb-2 text-body-secondary">Appointments today</h6>
+          <h4 style="margin-top:1rem;">{{appointments_today}}</h4>
+        </div>
+      </div>
+    </div>
+    <div style="display: inline-block;  margin-right:25px">
+      <div class="card" style="width: 10rem; margin-top: 30px; background-color: rgba(223, 227, 238, 0.4); border: none;">
+        <div class="card-body" style="height: 7rem;">
+          <h6 class="card-subtitle mb-2 text-body-secondary">Total appointments</h6>
+          <h4 style="margin-top:1rem;">{{appointments_count}}</h4>
+        </div>
+      </div>
+    </div>
+    <div style="display: inline-block;  margin-right:25px">
+      <div class="card" style="width: 10rem; margin-top: 30px; background-color: rgba(223, 227, 238, 0.4); border: none;">
+        <div class="card-body" style="height: 7rem;">
+          <h6 class="card-subtitle mb-2 text-body-secondary">Revenue</h6>
+          <h4 style="margin-top:2rem;">${{total_revenue}}</h4>
+        </div>
+      </div>
+    </div>
+    <div style="display: inline-block;  margin-right:25px">
+      <div class="card" style="width: 10rem; margin-top: 30px; background-color: rgba(223, 227, 238, 0.4); border: none;">
+        <div class="card-body" style="height: 7rem;">
+          <h6 class="card-subtitle mb-2 text-body-secondary">Total expenses</h6>
+          <h4 style="margin-top:2rem;">${{result[1]}}</h4>
+        </div>
+      </div>
+    </div>
+    <!-- Repeat other cards here -->
+  </div>
+  <!-- statistics -->
+  <div class="container-statistics" style="display: flex; justify-content: center; margin-top: 30px;">
+    <div class="statistic" style="display: inline-block; margin-right: 20px;">
+      <div class="card statistic-card" style="width: 32rem;">
+        <div class="card-body" style="height: 30rem;">
+          <h6 class="card-subtitle mb-2 text-body-secondary" style="text-align: left;">Appointment statistics</h6>
+          <div style="margin-left:25rem;"id="percentageChange"></div>
+          <div style="width:30rem;"><canvas id="appointmentsChart" style="height:700px" width="600" height="529.5"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: inline-block;">
+      <div class="card statistic-card" style="width: 32rem;">
+          <div class="card-body" style="height: 30rem;">
+              <h6 class="card-subtitle mb-2 text-body-secondary" style="text-align: left;">Payment Overview</h6>
+              <div>
+                  <canvas id="paymentStatusChart" style="display: block; box-sizing: border-box; width: 100%; height: 100%; max-width: 478px; max-height: 400px;"></canvas>
+              </div>
+          </div>
+      </div>
+  </div>
+
+    <div class="card statistic-card" style="width: 65.5rem; margin-right:13px;">
+      <div class="card-body" style="height: 30rem;">
+        <h6 class="card-subtitle mb-2 text-body-secondary" style="text-align: left;">Expenses Overview</h6>
+        <canvas id="expensesChart" style="width: 100%; height: 400px;"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    fetch(`/admin_appointments`)
+      .then(response => response.json())
+      .then(data => {
+        const dates = Object.keys(data.data);
+        const counts = Object.values(data.data);
+        const percentage_change = data.percentage_change;
+
+        // Create Chart.js chart and store it in a variable
+        const ctx = document.getElementById('appointmentsChart').getContext('2d');
+        const chart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: dates,
+            datasets: [{
+              label: 'Appointments',
+              data: counts,
+              backgroundColor: 'rgba(64, 112, 244, 0.8)',
+              borderColor: 'rgba(13, 110, 253, 1)',
+              borderWidth: 1,
+              borderRadius: 10,
+              barThickness: 30 // Set bar thickness to 30 pixels
+            }]
+          },
+          options: {
+            scales: {
+              x: {
+                grid: {
+                  display: false // Hide x-axis grid lines
+                }
+              },
+              y: {
+                grid: {
+                  display: false // Hide y-axis grid lines
+                },
+                beginAtZero: true
+              }
+            }
+          }
+        });
+
+        // Resize the chart when the window is resized
+        window.addEventListener('resize', () => {
+          chart.resize();
+        });
+
+        // Set the percentage change content in the HTML
+        const percentageChangeElement = document.getElementById('percentageChange');
+        percentageChangeElement.textContent = `${Math.abs(percentage_change.toFixed(2))}%`;
+
+        // Set color based on percentage change
+        if (percentage_change < 0) {
+          percentageChangeElement.style.color = 'red';
+        } else {
+          percentageChangeElement.style.color = 'black';
+        }
+
+        // Add icon
+        const iconElement = document.createElement('i');
+        iconElement.classList.add('bx');
+        if (percentage_change < 0) {
+          iconElement.classList.add('bx-down-arrow-alt');
+        } else {
+          iconElement.classList.add('bx-up-arrow-alt');
+        }
+        iconElement.classList.add('arrow-icon');
+        iconElement.style.color = (percentage_change < 0) ? 'red' : 'green';
+        iconElement.style.fontSize = '24px'; // Adjust the size of the arrow icon
+        percentageChangeElement.appendChild(iconElement);
+      });
+  });
+  document.addEventListener('DOMContentLoaded', () => {
+      fetch(`/get_payments`)
+          .then(response => {
+              if (!response.ok) {
+                  throw new Error('Network response was not ok');
+              }
+              return response.json();
+          })
+          .then(data => {
+              const paidCount = data.payments_paid_count;
+              const unpaidCount = data.payments_unpaid_count;
+
+              const ctx = document.getElementById('paymentStatusChart').getContext('2d');
+              const paymentStatusChart = new Chart(ctx, {
+                  type: 'doughnut',
+                  data: {
+                      labels: ['Paid', 'Unpaid'],
+                      datasets: [{
+                          label: 'Payment Status',
+                          data: [paidCount, unpaidCount],
+                          backgroundColor: ['#36a2eb', '#ff6384']
+                      }]
+                  },
+                  options: {
+                      responsive: true,
+                      plugins: {
+                          legend: {
+                              position: 'top',
+                          },
+                      }
+                  }
+              });
+
+              // Resize the chart when the window is resized
+              window.addEventListener('resize', () => {
+                  paymentStatusChart.resize();
+              });
+          })
+          .catch(error => {
+              console.error('Error fetching data:', error);
+              // Handle error (e.g., display an error message)
+          });
+  });
+
+  fetch('/get_expenses')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    })
+    fetch('/get_expenses')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    })
+    .then(data => {
+      // Process the fetched data
+      console.log('Expenses data:', data);
+
+      // Combine all dates from different expense categories into a single array
+      const allDates = new Set();
+      for (const [date] of data.medical) {
+        allDates.add(date);
+      }
+      for (const [date] of data.utilities) {
+        allDates.add(date);
+      }
+      for (const [date] of data.equipments) {
+        allDates.add(date);
+      }
+      for (const [date] of data.marketing) {
+        allDates.add(date);
+      }
+      for (const [date] of data.other) {
+        allDates.add(date);
+      }
+
+      // Sort the dates and assign them to the labels array
+      const labels = Array.from(allDates).sort();
+
+      // Iterate over the labels array and populate the expense arrays
+      const medical = [];
+      const utilities = [];
+      const equipments = [];
+      const marketing = [];
+      const other = [];
+
+      for (const date of labels) {
+        const medicalAmount = data.medical.find(([d, amount]) => d === date)?.[1] || 0;
+        const utilitiesAmount = data.utilities.find(([d, amount]) => d === date)?.[1] || 0;
+        const equipmentsAmount = data.equipments.find(([d, amount]) => d === date)?.[1] || 0;
+        const marketingAmount = data.marketing.find(([d, amount]) => d === date)?.[1] || 0;
+        const otherAmount = data.other.find(([d, amount]) => d === date)?.[1] || 0;
+
+        medical.push(medicalAmount);
+        utilities.push(utilitiesAmount);
+        equipments.push(equipmentsAmount);
+        marketing.push(marketingAmount);
+        other.push(otherAmount);
+      }
+
+  // Create a line chart
+  const ctx = document.getElementById('expensesChart').getContext('2d');
+      const expensesChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Medical Supplies',
+              data: medical,
+              borderColor: 'rgb(75, 192, 192)',
+              fill: false
+            },
+            {
+              label: 'Utilities',
+              data: utilities,
+              borderColor: 'rgb(255, 99, 132)',
+              fill: false
+            },
+            {
+              label: 'Equipments',
+              data: equipments,
+              borderColor: 'rgb(54, 162, 235)',
+              fill: false
+            },
+            {
+              label: 'Marketing',
+              data: marketing,
+              borderColor: 'rgb(153, 102, 255)',
+              fill: false
+            },
+            {
+              label: 'Other Expenses',
+              data: other,
+              borderColor: 'rgb(255, 159, 64)',
+              fill: false
+            }
+          ]
+        },
+        options: {
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+
+      // Resize the chart when the window is resized
+      window.addEventListener('resize', () => {
+        expensesChart.resize();
+      });
+    })
+    .catch(error => {
+      console.error('There was a problem with the fetch operation:', error);
+    });
+      </script>
+{% endblock %}

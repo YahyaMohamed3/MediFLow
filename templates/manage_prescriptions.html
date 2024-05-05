@@ -1,0 +1,257 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  Manage Prescriptions
+{% endblock %}
+
+{% block main %}
+<head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+</head>
+<style>
+
+
+    .submit-button:hover {
+        background-color: black ;
+        color: white;
+        transition: background-color 0.3s ease-out, color 0.3s ease-out;
+    }
+
+    @media (max-width: 768px) {
+        .form-group {
+            width: 100%;
+        }
+    }
+  .oval-input {
+        border-radius: 50px; /* Adjust border-radius to make it oval-shaped */
+        height: 45px; /* Adjust height of the input field */
+        padding: 10px 20px; /* Adjust padding of the input field */
+        font-size: 1.2rem; /* Adjust font size of the input field */
+    }
+</style>
+<div class="container" style="margin-top:3rem;">
+  <h1>Manage Prescriptions</h1>
+    <div class="row">
+        <div class="col-md-6 offset-md-3">
+            <form action="" method="GET">
+                <div class="input-group mb-2" style="max-width:80rem; margin-top:2rem;">
+                    <input type="text" class="form-control oval-input" placeholder="Search for Patients..." id="searchInput" autocomplete="off">
+                    <button class="btn btn-primary" type="submit" onclick="searchTable()"><i class='bx bx-search' style="font-size: 1.5rem;"></i></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="table-responsive">
+    <table class="content-table" id="patientTable" style="margin-bottom:3rem;">
+        <thead>
+            <tr>
+                <th>Actions</th>
+                <th>Medication</th>
+                <th>Dosage</th>
+                <th>Instructions</th>
+                <th>Date prescribed</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+            {% for prescription in prescriptions %}
+            <td><div class="btn-group" role="group" aria-label="File Actions" style="z-index:0;">
+                <a href="#" class="btn btn-outline-danger delete-prescription" data-prescription-id="{{ prescription[4] }}">Delete</a>
+            </div></td>
+            <td>{{prescription[0]}}</td>
+            <td>{{prescription[1]}}</td>
+            <td>{{prescription[2]}}</td>
+            <td>{{prescription[3]}}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+</div>
+<div style="display:flex;align-content: stretch;flex-direction: row;justify-content: center;">
+    <ul class="pagination">
+        {% if page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="?page=1" aria-label="First">
+                <span aria-hidden="true">««</span>
+            </a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page - 1 }}" aria-label="Previous">
+                <span aria-hidden="true">«</span>
+            </a>
+        </li>
+        {% endif %}
+
+        {% for num in range(1, total_pages + 1) %}
+        <li class="page-item {% if num == page %}active{% endif %}">
+            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+        </li>
+        {% endfor %}
+
+        {% if page < total_pages %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page + 1 }}" aria-label="Next">
+                <span aria-hidden="true">»</span>
+            </a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ total_pages }}" aria-label="Last">
+                <span aria-hidden="true">»»</span>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+  </div>
+  <hr>
+  <h1>Medications History</h1>
+  <div class="table-responsive">
+    <table class="content-table" id="patientTable" style="margin-bottom:3rem;">
+        <thead>
+            <tr>
+                <th>Medication</th>
+                <th>Dosage</th>
+                <th>Instructions</th>
+                <th>Date prescribed</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+            {% for history_prescription in history_prescriptions %}
+            <td>{{history_prescription[0]}}</td>
+            <td>{{history_prescription[1]}}</td>
+            <td>{{history_prescription[2]}}</td>
+            <td>{{history_prescription[3]}}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+</div>
+<div style="display:flex;align-content: stretch;flex-direction: row;justify-content: center;">
+    <ul class="pagination">
+        {% if page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="?page=1" aria-label="First">
+                <span aria-hidden="true">««</span>
+            </a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page - 1 }}" aria-label="Previous">
+                <span aria-hidden="true">«</span>
+            </a>
+        </li>
+        {% endif %}
+
+        {% for num in range(1, total_pages + 1) %}
+        <li class="page-item {% if num == page %}active{% endif %}">
+            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+        </li>
+        {% endfor %}
+
+        {% if page < total_pages %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page + 1 }}" aria-label="Next">
+                <span aria-hidden="true">»</span>
+            </a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ total_pages }}" aria-label="Last">
+                <span aria-hidden="true">»»</span>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+  </div>
+
+<hr style="margin-top:4rem;">
+<div style="margin-top:3rem;" class="patient-form-container">
+    <form method="POST" id="new_prescription" class="needs-validation" novalidate>
+        {% if error_message %}
+        <p class="error-message">{{ error_message }}</p>
+        {% endif %}
+        <h2 class="patient-form-title">Add Prescription</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="tel" id="medication" name="medication" autocomplete="off" class="form-control" placeholder = "Medication" required>
+                    <label for="medication">Medication</label>
+                    <div class="invalid-feedback">Please provide a Medication</div>
+                </div>
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                <input type="text" id="dosage" name="dosage" autocomplete="off" class="form-control" placeholder="Dosage" required> <label for="dosage">Dosage</label> <div class="invalid-feedback">Please provide a Dosage</div>
+            </div>
+            <div class="form-group">
+                    <div class="form-floating mb-3"> <input type="text" id="instructions" autocomplete="off" name="instructions" class="form-control" placeholder ="Instructions" required> <label for="instructions">Instructions</label>
+                    <div class="invalid-feedback">Please provide instructions .</div>
+                </div>
+            </div>
+        <button type="submit" class="submit-button">Add Prescription</button>
+    </form>
+</div>
+<script>
+
+const form = document.getElementById("new_prescription");
+
+// Add event listener to form submission
+form.addEventListener('submit', function(event) {
+    // Check if the form is valid according to Bootstrap validation
+    if (!form.checkValidity()) {
+        // Prevent the default form submission
+        event.preventDefault();
+        // Stop event propagation
+        event.stopPropagation();
+    }
+    // Add Bootstrap's 'was-validated' class to enable custom validation styles
+    form.classList.add('was-validated');
+});
+
+// Add an event listener to all delete buttons
+document.querySelectorAll('.delete-prescription').forEach(button => {
+  button.addEventListener('click', function(event) {
+    event.preventDefault(); // Prevent the default action of clicking the link
+    // Get the prescription ID from the data attribute
+    const prescriptionId = this.getAttribute('data-prescription-id');
+
+    // Send a DELETE request to the backend
+    fetch(`/delete_prescription/${prescriptionId}`, {
+      method: 'DELETE'
+    })
+    .then(() => { // Reload the current page after successfully deleting the prescription
+      window.location.reload();
+    })
+    .catch(error => console.error('Error deleting prescription:', error));
+  });
+});
+
+    // Function to perform search
+function searchTable() {
+    // Declare variables
+    var input, filter, table, tr, td, i, txtValue;
+    input = document.getElementById("searchInput");
+    filter = input.value.toUpperCase();
+    table = document.getElementById("patientTable");
+    tr = table.getElementsByTagName("tr");
+
+    // Loop through all table rows, and hide those who don't match the search query
+    for (i = 0; i < tr.length; i++) {
+        td = tr[i].getElementsByTagName("td");
+        for (var j = 0; j < td.length; j++) {
+            if (td[j]) {
+                txtValue = td[j].textContent || td[j].innerText;
+                if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                    tr[i].style.display = "";
+                    break;
+                } else {
+                    tr[i].style.display = "none";
+                }
+            }
+        }
+    }
+}
+
+document.getElementById("searchInput").addEventListener("keyup", searchTable);
+</script>
+{% endblock %}

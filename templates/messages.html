@@ -1,0 +1,391 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  Messages
+{% endblock %}
+
+{% block main %}
+<head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
+    <style>
+        .message-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .message-sent {
+    background-color: #007bff;
+    color: white;
+    border-radius: 50px;
+    padding: 10px;
+    align-self: flex-end;
+    text-align: left; /* Change text alignment to left */
+    word-wrap: break-word;
+    max-width: 50%;
+    margin-left: auto; /* Adjust margin to auto */
+    margin-right: 0; /* Reset right margin */
+    margin-bottom:1rem;
+}
+
+.message-received {
+    background-color: black;
+    color: white;
+    border-radius: 50px;
+    padding: 10px;
+    align-self: flex-start; /* Align to the left */
+    text-align: left; /* Change text alignment to left */
+    word-wrap: break-word;
+    max-width: 50%;
+    margin-right: auto; /* Adjust margin to auto */
+    margin-left: 5px; /* Reset left margin */
+}
+
+        .modal-content {
+            border-radius: 30px;
+        }
+
+        .modal-header {
+            border-bottom: none;
+        }
+
+        .modal-footer {
+            border-top: none;
+        }
+
+        .container-fluid {
+            padding-left: 0;
+            padding-right: 0;
+        }
+
+        .list-group {
+            height: 100vh;
+            overflow-y: auto;
+            border-right: 1px solid #ccc;
+        }
+
+        .message-container {
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .card {
+            border: none;
+        }
+
+        .list-group-item:hover {
+            background-color: #cceeff;
+        }
+
+        .contact-item:hover {
+            cursor: pointer;
+        }
+
+        .message-timestamp {
+    display: block; /* Ensures the timestamp appears on its own line */
+}
+
+.small-timestamp {
+    font-size: 0.8em; /* Adjust the font size to make it smaller */
+    color:  rgba(204, 204, 204, 1.0);
+    margin-left:0.2rem;
+    /* Add any other styling you want */
+}
+
+    </style>
+</head>
+<header class="container">
+    <div class="container" style="display:flex;">
+        <h1 style="margin-top:1.2rem; text-align:left;">Messages</h1>
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#exampleModal" style="height:10%; width:14%; font-size:1rem; border-radius:50px; margin-top:1.7rem; margin-left:53rem;">New Message</button>
+    </div>
+</header>
+{% if error_messages %}
+<div class="alert alert-danger" role="alert">
+    {% for error_message in error_messages %}
+    <p>{{ error_message }}</p>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="exampleModalLabel">New message</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method ="POST" id="message-form">
+                    <div class="mb-3">
+                        <label for="userType" class="form-label">User Type</label>
+                        <select class="form-select" id="userType" name="userType">
+                            <option value="" selected disabled>Select</option>
+                            {% if session["user_type"] == "Doctor" %}
+                            <option value="admin">Admin</option>
+                            <option value="Receptionist">Receptionist</option>
+                            {% elif session["user_type"] == "Receptionist" %}
+                            <option value="admin">Admin</option>
+                            <option value="Doctor">Doctor</option>
+                            {% elif session["user_type"] == "admin" %}
+                            <option value="Doctor">Doctor</option>
+                            <option value="Receptionist">Receptionist</option>
+                            {% endif %}
+                        </select>
+                    </div>
+
+                    {% if session["user_type"] == "Doctor" or session["user_type"] == "admin" %}
+                    <div class="mb-3" id="receptionistSelect" style="display: none;">
+                        <label for="receptionist" class="form-label">Receptionist</label>
+                        <select class="form-select" id="receptionist" name="receptionist">
+                            <option value="" selected disabled>Select</option>
+                            {% for receptionist in receptionists %}
+                            <option value="{{ receptionist[0] }}">{{ receptionist[1] }} {{ receptionist[2] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    {% if session["user_type"] == "Receptionist" or session["user_type"] == "admin" %}
+                    <div class="mb-3" id="doctorSelect" style="display: none;">
+                        <label for="doctor" class="form-label">Doctor</label>
+                        <select class="form-select" id="doctor" name="doctor">
+                            <option value="" selected disabled>Select</option>
+                            {% for doctor in doctors %}
+                            <option value="{{ doctor[0] }}">{{ doctor[1] }} {{ doctor[2] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    {% if session["user_type"] == "Doctor" or session["user_type"] == "Receptionist" %}
+                    <div class="mb-3" id="adminSelect" style="display: none;">
+                        <label for="admin" class="form-label">Admin</label>
+                        <select class="form-select" id="admin" name="admin">
+                            <option value="" selected disabled>Select</option>
+                            <option value="{{ admins['id'] }}">{{ admins['first_name'] }} {{ admins['last_name'] }}</option>
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3" id="messageInput" style="display: none;">
+                        <label for="message" class="form-label">Message</label>
+                        <textarea class="form-control" id="message" name="message" rows="3"></textarea>
+                    </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary">Send</button>
+            </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid mt-4 pb-0">
+    <div id="user-type" data-user-type="{{ user_type }}"></div>
+    <div id="user-id" data-user-id="{{ user_id }}"></div>
+    <div class="row">
+        <div class="col-md-3 p-0">
+            <ul class="list-group">
+                {% for contact in contacts %}
+                <li class="list-group-item d-flex justify-content-between align-items-center contact-item" data-receiver="{{ contact[1] }}">
+                    <div>
+                        <span class="contact-name">{{ contact[1] }}</span>
+                        <input type="hidden" id="receiver_id" value="{{ contact[0] }}">
+                        <input type="hidden" id="receiver_user_type" value="{{ contact[2] }}">
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="col-md-9 p-0" id="messaging-section" style="display: none;">
+            <div class="message-container1">
+                <div class="card mb-0" style="height: 100%;">
+                    <div class="card-header">
+                        <span id="current-contact-name"></span>
+                    </div>
+                    <div class="message-container" style="overflow-y: auto; flex-grow:1;">
+                    </div>
+                    <div class="card-footer">
+                        <form id="message-send-form">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="message-input" placeholder="Type your message here..." aria-label="Message input" autocomplete="off" required>
+                                <button class="btn btn-primary" type="submit">Send</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+    const socket = io(); // Initialize Socket.IO
+
+    const userType = document.getElementById("user-type").getAttribute("data-user-type");
+    const userId = document.getElementById("user-id").getAttribute("data-user-id");
+
+    function openChat(receiverName, receiverId, receiverUserType) {
+    const messagingSection = document.getElementById("messaging-section");
+    const currentContactName = document.getElementById("current-contact-name");
+    const receiverIdInput = document.getElementById("receiver_id");
+    const receiverUserTypeInput = document.getElementById("receiver_user_type");
+
+    if (messagingSection && currentContactName && receiverIdInput && receiverUserTypeInput) {
+        messagingSection.style.display = "flex";
+        messagingSection.style.flexDirection = "column-reverse";
+        currentContactName.innerText = receiverName;
+        receiverIdInput.value = receiverId;
+        receiverUserTypeInput.value = receiverUserType;
+
+        fetch(`/get_messages/${receiverId}/${receiverUserType}`)
+            .then(response => response.json())
+            .then(data => {
+                const messageContainer = document.querySelector(".message-container");
+                messageContainer.innerHTML = '';
+                data.forEach(message => {
+                    const messageDiv = document.createElement("div");
+                    messageDiv.classList.add("message");
+                    const timestamp = new Date(message.timestamp);
+                    const formattedTimestamp = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    messageDiv.innerHTML = `<span class="message-text">${message.message}</span>` +
+                      `<span class="message-timestamp small-timestamp">${formattedTimestamp}</span>`;
+                    if (message.sender_id == userId  && message.sender_user_type == userType) {
+                        messageDiv.classList.add("message-sent");
+                    } else {
+                        messageDiv.classList.add("message-received");
+                    }
+                    messageContainer.appendChild(messageDiv);
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching messages:', error);
+            });
+    } else {
+        console.error("One or more required elements not found in the DOM.");
+    }
+}
+
+    const contactItems = document.querySelectorAll(".contact-item");
+    contactItems.forEach(function(item) {
+        item.addEventListener("click", function() {
+            const receiverName = this.dataset.receiver;
+            const receiverId = this.querySelector("#receiver_id").value;
+            const receiverUserType = this.querySelector("#receiver_user_type").value;
+            openChat(receiverName, receiverId, receiverUserType);
+        });
+    });
+
+    var messageSendForm = document.getElementById("message-send-form");
+    if (messageSendForm) {
+        messageSendForm.addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            var messageInput = document.getElementById("message-input");
+            var receiverIdInput = document.getElementById("receiver_id");
+            var receiverUserTypeInput = document.getElementById("receiver_user_type");
+
+            if (!messageInput || !receiverIdInput || !receiverUserTypeInput) {
+                console.error("One or more required elements not found in the DOM.");
+                return;
+            }
+
+            var message = messageInput.value;
+            var receiverId = receiverIdInput.value;
+            var receiverUserType = receiverUserTypeInput.value;
+
+            if (!message) {
+                console.error("Message input field is empty.");
+                return;
+            }
+
+            showMessage(message, true);
+            messageInput.value = '';
+
+            socket.emit("private_message", { message: message, receiver_id: receiverId, receiver_user_type: receiverUserType });
+        });
+    } else {
+        console.error("Message send form element not found in the DOM.");
+    }
+
+    // Function to show messages inside the message container
+    function showMessage(message, sent) {
+            var messageContainer = document.querySelector(".message-container "); // Select the message container
+            if (messageContainer) {
+                var messageElement = document.createElement("div");
+                messageElement.classList.add("message");
+                if (sent) {
+                    messageElement.classList.add("message-sent");
+                } else {
+                    messageElement.classList.add("message-received");
+                }
+                messageElement.innerText = message;
+                messageContainer.appendChild(messageElement);
+                // Scroll to the bottom of the container to show the latest message
+                messageContainer.scrollTop = messageContainer.scrollHeight;
+            } else {
+                console.error("Message container element not found in the DOM.");
+            }
+        }
+
+
+    socket.on("private_message", function(data) {
+        var message = data.message;
+        showMessage(message, false);
+    });
+
+
+
+    $('#userType, #receptionist').change(function() {
+        var userType = $('#userType').val();
+        var receptionist = $('#receptionist').val();
+
+        if (userType === 'admin' || ($('#receptionistSelect').is(':visible') && receptionist !== '')) {
+            $('#messageInput').show();
+        } else {
+            $('#messageInput').hide();
+        }
+
+        if (userType === 'admin') {
+            $('#adminSelect').show();
+        } else {
+            $('#adminSelect').hide();
+        }
+    });
+
+    $('#userType').change(function() {
+        var userType = $(this).val();
+        if (userType === 'Receptionist') {
+            $('#receptionistSelect').show();
+        } else {
+            $('#receptionistSelect').hide();
+        }
+    });
+
+    $('#userType').change(function() {
+        var userType = $(this).val();
+        if (userType === 'Doctor') {
+            $('#doctorSelect').show();
+        } else {
+            $('#doctorSelect').hide();
+        }
+    });
+
+    $('#doctorSelect').change(function() {
+        var doctorSelect = $(this).val();
+        if (doctorSelect != ' ') {
+            $('#messageInput').show();
+        } else {
+            $('#messageInput').hide();
+        }
+    });
+});
+</script>
+
+{% endblock %}

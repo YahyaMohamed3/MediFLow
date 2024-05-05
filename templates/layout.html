@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1, width=device-width">
+
+    <link href="/static/style.css" rel="stylesheet">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <title>Mediflow{% block title %}{% endblock %}</title>
+    <link href="/static/favicon.ico " rel="icon">
+    <style>
+        .logo-name img{
+            width: 200px; /* Adjust the width to your desired size */
+            height: 200px; /* Maintain aspect ratio */
+            margin-top:1rem;
+            z-index:10;
+
+        }
+        </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">
+            <i class='bx bx-menu menu-icon'></i>
+            <span class="logo-name"><img src="/static/[Original size] MediFLow.svg"></span>
+        </div>
+        <div class="sidebar">
+            <div class="logo">
+                <i class='bx bx-menu menu-icon'></i>
+                <span class="logo-name">MediFlow</span>
+
+            </div>
+
+            <div class="sidebar-content">
+                {% if session["user_id"] and session["user_type"] == "admin" %}
+                <ul class="lists">
+                    <li class="list">
+                        <a href="/" class="nav-link">
+                            <i class='bx bx-home-alt icon'></i>
+                            <span class="link">Dashboard</span>
+                        </a>
+                    </li>
+                    <li class="list">
+                        <a href="/users" class="nav-link">
+                            <i class='bx bx-group icon'></i>
+                            <span class="link">Users</span>
+                        </a>
+                    </li>
+                    <li class="list">
+                        <a href="/patients" class="nav-link">
+                            <i class='bx bx-user icon'></i>
+                            <span class="link">Patients</span>
+                        </a>
+                    </li>
+                    <li class="list">
+                        <a href="/view_doctors" class="nav-link">
+                            <i class='bx bx-first-aid icon'></i>
+                            <span class="link">Doctors</span>
+                        </a>
+                    </li>
+                    <li class="list">
+                        <a href="/appointments" class="nav-link">
+                            <i class='bx bx-time-five icon'></i>
+                            <span class="link">Appointments</span>
+                        </a>
+                    </li>
+                    <li class="list">
+                        <a href="/expenses" class="nav-link">
+                            <i class='bx bx-dollar icon'></i>
+                            <span class="link">Expenses</span>
+                        </a>
+                    </li>
+                    <li class="list">
+                        <a href="/messages" class="nav-link">
+                            <i class='bx bx-chat icon'></i>
+                            <span class="link">Messages</span>
+                        </a>
+                    </li>
+                </ul>
+                <div class="bottom-content">
+                    <li class="list">
+                        <a href="/add_users" class="nav-link">
+                            <i class='bx bxs-user-plus icon'></i>
+                            <span class="link">New User</span>
+                        </a>
+                    </li>
+                    <li class="list">
+                        <a href="/logout" class="nav-link">
+                            <i class='bx bx-log-out icon'></i>
+                            <span class="link">Logout</span>
+                        </a>
+                    </li>
+                    {% elif session["user_id"] and session["user_type"] == 'Receptionist' %}
+                    <ul class="lists">
+                        <li class="list">
+                        <a href="/receptionist" class="nav-link">
+                            <i class='bx bxs-dashboard icon'></i>
+                            <span class="link">Dashboard</span>
+                        </a>
+                        </li>
+                        <li class="list">
+                            <a href="/doctors_rec" class="nav-link">
+                                <i class='bx bx-first-aid icon'></i>
+                                <span class="link">Doctors</span>
+                            </a>
+                        </li>
+                            <li class="list">
+                                <a href="/patients" class="nav-link">
+                                    <i class='bx bx-user icon'></i>
+                                    <span class="link">Patients</span>
+                                </a>
+                            </li>
+                            <li class="list">
+                                <a href="/appointments" class="nav-link">
+                                    <i class='bx bx-time-five icon'></i>
+                                    <span class="link">Appointments</span>
+                                </a>
+                            </li>
+                            <li class="list">
+                                <a href="/messages" class="nav-link">
+                                    <i class='bx bx-chat icon'></i>
+                                    <span class="link">Messages</span>
+                                </a>
+                            </li>
+                        </ul>
+                        <div class="bottom-content">
+                            <li class="list">
+                                <a href="/new_patient" class="nav-link">
+                                    <i class='bx bxs-user-plus icon'></i>
+                                    <span class="link">New Patient</span>
+                                </a>
+                            </li>
+                            <li class="list">
+                                <a href="/logout" class="nav-link">
+                                    <i class='bx bx-log-out icon'></i>
+                                    <span class="link">Logout</span>
+                                </a>
+                            </li>
+                            {% elif session["user_id"] and session["user_type"] == 'Doctor' %}
+                            <ul class="lists">
+                                <li class="list">
+                                <a href="/doctor" class="nav-link">
+                                    <i class='bx bx-home-alt icon'></i>
+                                    <span class="link">Home</span>
+                                </a>
+                                </li>
+                                <li class="list">
+                                    <a href="/patients" class="nav-link">
+                                        <i class='bx bx-user icon'></i>
+                                        <span class="link">Patients</span>
+                                    </a>
+                                    </li>
+                                <li class="list">
+                                    <a href="/appointments" class="nav-link">
+                                        <i class='bx bx-time-five icon'></i>
+                                        <span class="link">Appointments</span>
+                                    </a>
+                                </li>
+                                <li class="list">
+                                    <a href="/doc_prescriptions" class="nav-link">
+                                        <i class='bx bx-capsule icon'></i>
+                                        <span class="link">Prescriptions</span>
+                                    </a>
+                                    </li>
+                                    <li class="list">
+                                        <a href="/doc_records" class="nav-link">
+                                            <i class='bx bx-heart-square icon'></i>
+                                            <span class="link">Medical Records</span>
+                                        </a>
+                                        </li>
+                                        <li class="list">
+                                            <a href="/messages" class="nav-link">
+                                                <i class='bx bx-chat icon'></i>
+                                                <span class="link">Messages</span>
+                                            </a>
+                                            </li>
+                                            </ul>
+                                <div class="bottom-content">
+                                    <li class="list">
+                                        <a href="/logout" class="nav-link">
+                                            <i class='bx bx-log-out icon'></i>
+                                            <span class="link">Logout</span>
+                                        </a>
+                                    </li>
+                        {% else %}
+                    <ul class="lists">
+                        <li class="list">
+                            <a href="/login" class="nav-link">
+                                <i class='bx bx-user icon'></i>
+                                <span class="link">Login</span>
+                            </a>
+                        </li>
+                        <li class="list">
+                            <a href="/register" class="nav-link">
+                                <i class='bx bx-user icon'></i>
+                                <span class="link">Register</span>
+                            </a>
+                        </li>
+                        </ul>
+                        {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+    {% if get_flashed_messages() %}
+        <header>
+            <div class="alert alert-primary mb-0 text-center" role="alert">
+                {{ get_flashed_messages() | join(" ") }}
+            </div>
+        </header>
+    {% endif %}
+    <!-- Main Content -->
+    <main class="container py-5 text-center">
+        {% block main %}{% endblock %}
+    </main>
+    <footer>
+        <div class="footer-content">
+            <p style="text-align:center; margin-top:10rem;">MediFlow © <span id="currentYear"></span>. All rights reserved.</p>
+        </footer>
+    <script>
+ document.getElementById("currentYear").textContent = new Date().getFullYear();
+const navbar = document.querySelector("nav");
+const menuBtns = document.querySelectorAll(".menu-icon");
+const closeBtn = document.querySelector(".close-btn");
+const mainContent = document.querySelector("main");
+
+// Function to toggle navbar open/close
+function toggleNavbar() {
+    navbar.classList.toggle("open");
+    mainContent.classList.toggle("pushed"); // Add or remove class to adjust main content margin
+}
+
+// Open/close navbar when menu icon is clicked
+menuBtns.forEach(menuBtn => {
+    menuBtn.addEventListener("click", toggleNavbar);
+});
+
+// Close navbar when close button is clicked
+closeBtn.addEventListener("click", () => {
+    navbar.classList.remove("open");
+    mainContent.classList.remove("pushed"); // Ensure main content returns to normal position when navbar is closed
+});
+
+    </script>
+</body>
+</html>

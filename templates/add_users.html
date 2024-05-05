@@ -1,0 +1,183 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Add Users
+{% endblock %}
+
+{% block main %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+<style>
+    .user-form-container {
+        width: 90%;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        border: 2px solid #0000;
+        border-radius: 10px;
+        background-color: #f8f9fa00;
+    }
+
+    .user-form-title {
+        text-align: center;
+        margin-bottom: 20px;
+        color: #000;
+    }
+
+    .form-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+
+    .form-group {
+        width: 48%;
+    }
+
+    .form-label {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        left: 16px;
+        color: #000;
+        transition: all 0.15s;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+
+    .submit-button {
+        width: 100%;
+        background-color: #4070f4;
+        color: #fff;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s ease-in, color 0.3s ease-in;
+    }
+
+    .submit-button:hover {
+        background-color: black;
+        color: white;
+        transition: background-color 0.3s ease-out, color 0.3s ease-out;
+    }
+
+    @media (max-width: 768px) {
+        .form-row {
+            flex-direction: column;
+        }
+
+        .form-group {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="user-form-container">
+    <form method="POST" id="newUserForm" class="needs-validation" novalidate>
+        {% if error_messages %}
+            <div class="alert alert-danger" role="alert">
+                {% for error_message in error_messages %}
+                    <p>{{ error_message }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+        <h2 class="user-form-title">New User Information</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="email" id="email" name="email" autocomplete="off" class="form-control" placeholder="Email" required>
+                    <label for="email">Email</label>
+                    <div class="invalid-feedback">Please provide a valid email address.</div>
+                </div>
+            </div>
+            <!-- New form-group for the phone number input -->
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="tel" id="phone" name="phone" autocomplete="off" class="form-control" placeholder="Phone Number" required>
+                    <label for="phone">Phone Number</label>
+                    <div class="invalid-feedback">Please provide a valid phone number.</div>
+                </div>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="password" id="password" name="password" autocomplete="off" class="form-control" placeholder="Password" required>
+                    <label for="password">Password</label>
+                    <div class="invalid-feedback">Please provide a password.</div>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="password" id="confirmation" name="confirmation" autocomplete="off" class="form-control" placeholder="Confirm Password" required>
+                    <label for="confirmation">Confirm Password</label>
+                    <div class="invalid-feedback">Please confirm the password.</div>
+                </div>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="text" id="firstName" name="firstname" autocomplete="off" class="form-control" placeholder="First Name" required>
+                    <label for="firstName">First Name</label>
+                    <div class="invalid-feedback">Please provide a first name.</div>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="text" id="lastName" name="lastname" autocomplete="off" class="form-control" placeholder="Last Name" required>
+                    <label for="lastName">Last Name</label>
+                    <div class="invalid-feedback">Please provide a last name.</div>
+                </div>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <select id="position" name="position" class="form-control" required>
+                        <option value="" disabled selected>Select Position</option>
+                        <option value="Receptionist">Receptionist</option>
+                        <option value="Nurse">Nurse</option>
+                        <option value="Medical Assistant">Medical Assistant</option>
+                    </select>
+                    <label for="position">Position</label>
+                    <div class="invalid-feedback">Please select a position.</div>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="form-floating mb-3">
+                    <input type="text" id="payroll" name="payroll" autocomplete="off" class="form-control" placeholder="Payroll">
+                    <label for="payroll">Payroll</label>
+                    <div class="invalid-feedback">Please provide a payroll amount.</div>
+                </div>
+            </div>
+        </div>
+        <button type="submit" class="submit-button">Add New User</button>
+    </form>
+</div>
+<script>
+    // Example starter JavaScript for disabling form submissions if there are invalid fields
+    (() => {
+        'use strict';
+
+        // Fetch the form you want to apply custom Bootstrap validation styles to
+        const form = document.getElementById('newUserForm'); // Corrected form ID
+
+        // Prevent submission and add custom validation styles
+        form.addEventListener('submit', event => {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
+            form.classList.add('was-validated');
+        }, false);
+    })();
+</script>
+{% endblock %}

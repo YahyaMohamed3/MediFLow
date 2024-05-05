@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+
+{% block title %}
+
+{% endblock %}
+
+{% block main %}
+<head>
+    <style>
+        .bx {
+            font-size: 150px; /* Adjust the size as needed */
+            color: #008000; /* Set the color */
+            margin-top: 15px; /* Adjust the margin-top to position the icon */
+        }
+    </style>
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+</head>
+<main class="container py-5">
+    <form method="POST">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card center-card">
+                <div class="login-box">
+                    <div class="login-header">
+                    <i style="color: #4070f4;"class='bx bx-check-shield'></i>
+                    <h1>Password Reset Email Sent</h1>
+        <p>An email with instructions to reset your password has been sent to your email address.</p>
+        <p>Please check your inbox and follow the instructions provided in the email.</p><!-- Move the icon here -->
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
