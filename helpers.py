@@ -4,8 +4,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import jwt
-from jwt.exceptions import ExpiredSignatureError
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import re
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -13,10 +12,9 @@ from cryptography.hazmat.primitives import padding
 from base64 import b64encode, b64decode
 import os
 import logging
-from datetime import datetime, timedelta
 import sqlite3
 import uuid
-
+import secrets  
 
 
 def login_required(f):
@@ -35,23 +33,50 @@ def login_required(f):
     return decorated_function
 
 def generate_token(email):
+    """Generate a secure random token and store expiration time in payload"""
+    # Generate a secure random token
+    random_token = secrets.token_urlsafe(32)
+    
     # Set token expiration to 1 hour from now
-    expiration_time = datetime.utcnow() + timedelta(hours=1)
-    payload = {'email': email, 'exp': expiration_time}
+    expiration_time = datetime.now(timezone.utc) + timedelta(hours=1)
+    exp_timestamp = int(expiration_time.timestamp())
+    
+    # Store email and expiration in JWT payload
+    payload = {'email': email, 'exp': exp_timestamp, 'token': random_token}
     token = jwt.encode(payload, 'lDJb00kAG8RoAsRhIA^2rO4WAI)_PqhW', algorithm='HS256')
+    
+    # Make sure we always return a string
+    if isinstance(token, bytes):
+        token = token.decode('utf-8')
+        
     return token
 
 
 def verify_token(token):
+    """Verify the token is valid and not expired"""
     try:
+        # Ensure token is string
+        if isinstance(token, bytes):
+            token = token.decode('utf-8')
+            
+        # Decode and verify the JWT token
         payload = jwt.decode(token, 'lDJb00kAG8RoAsRhIA^2rO4WAI)_PqhW', algorithms=['HS256'])
-        # Check if the token has expired
-        if datetime.utcnow() > datetime.fromtimestamp(payload['exp']):
-            return False  # Token has expired
-        return True  # Token is valid
-    except ExpiredSignatureError:
-        return False  # Token has expired
-    except Exception:
+        
+        # Check if required fields are in the payload
+        if 'email' not in payload or 'exp' not in payload:
+            logging.error("Token missing required fields")
+            return False
+            
+        # Token is valid and not expired (JWT library already checks expiration)
+        return payload
+    except jwt.PyJWTError as e:
+        if 'Signature has expired' in str(e):
+            logging.error("Token expired")
+        else:
+            logging.error(f"Invalid token: {e}")
+        return False
+    except Exception as e:
+        logging.error(f"Token verification error: {e}")
         return False
 
 
@@ -108,8 +133,6 @@ def decrypt_message(key, cipher_text, iv):
 
     # Return the decrypted message
     return decrypted_message
-
-
 
 
 
