@@ -8,7 +8,6 @@ click==8.1.7
 colorama==0.4.6
 cryptography==42.0.7
 Flask==3.0.2
-Flask-JWT==0.3.2
 flask-ngrok==0.0.25
 Flask-Session==0.6.0
 Flask-SocketIO==5.3.6
