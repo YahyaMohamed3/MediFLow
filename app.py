@@ -378,7 +378,6 @@ def handle_disconnect():
 
 
 
-
 @socketio.on("private_message")
 def handle_private_message(data):
     try:
@@ -751,7 +750,7 @@ def admin_appointments():
 
     # Convert dates to string format for SQL query
     start_date_str_current_week = start_date_current_week.strftime('%Y-%m-%d')
-    end_date_str_current_week = end_date_current_week.strftime('%Y-%m-%d')
+    end_date_str_current_week = end_date_str_current_week.strftime('%Y-%m-%d')
 
     # Fetch appointments for the current week grouped by weekdays
     data = db.execute('''
@@ -2266,7 +2265,7 @@ def manage_records(patient_id):
 
             if error_message:
                 medical_records = db.execute("""
-                    SELECT visit_date, diagnosis, test_name, test_result, reference_range, test_date , follow_up_instructions
+                    SELECT visit_date, diagnosis, test_name, test_result, reference_range, test_date, follow_up_instructions
                     FROM medical_records
                     WHERE patient_id = ?
                 """, (patient_id,)).fetchall()
@@ -2694,3 +2693,7 @@ def delete_patient(patient_id):
         print(error_message)
         flash("Failed to delete patient. Please try again later.", "error")
         return jsonify({'error': 'Error message here'})
+
+
+if __name__ == "__main__":
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=True)
