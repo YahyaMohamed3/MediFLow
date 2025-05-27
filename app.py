@@ -61,6 +61,13 @@ def after_request(response):
     return response
 
 def format_phone_number(phone_number):
+    # Handle None or empty values
+    if phone_number is None or phone_number == '':
+        return 'N/A'
+    
+    # Ensure phone_number is a string
+    phone_number = str(phone_number)
+    
     # Check if the phone number is already formatted
     pattern = r'^\(\d{3}\) \d{3}-\d{4}$'
     if re.match(pattern, phone_number):

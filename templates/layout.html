@@ -3,7 +3,6 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="initial-scale=1, width=device-width">
-
     <link href="/static/style.css" rel="stylesheet">
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <title>Mediflow{% block title %}{% endblock %}</title>
@@ -235,11 +234,13 @@ menuBtns.forEach(menuBtn => {
     menuBtn.addEventListener("click", toggleNavbar);
 });
 
-// Close navbar when close button is clicked
-closeBtn.addEventListener("click", () => {
-    navbar.classList.remove("open");
-    mainContent.classList.remove("pushed"); // Ensure main content returns to normal position when navbar is closed
-});
+// Close navbar when close button is clicked (only if close button exists)
+if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+        navbar.classList.remove("open");
+        mainContent.classList.remove("pushed"); // Ensure main content returns to normal position when navbar is closed
+    });
+}
 
     </script>
 </body>

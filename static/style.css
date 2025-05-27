@@ -66,7 +66,7 @@ main {
 
 nav.open + main {
     margin-left: 260px; /* Adjust margin when navbar is open */
-    transition: 0.3 all ease-in;
+    transition: 0.3s all ease-in;
 }
 
 
@@ -249,15 +249,40 @@ body {
 }
 
 .content-table {
-    border-collapse: collapse;
+    border-spacing: 0;
+    border-collapse: separate; /* Important for border-radius to work */
     margin: 25px auto; /* Centering the table horizontally */
     font-size: 1rem;
     min-width: 70rem;
-    border-radius: 5px 5px 0 0;
-    overflow: hidden;
-    box-shadow: 0 0 3px rgba(0, 0, 0, 0.1);
-    outline: 1px solid #d3d3d3;
-    border-radius:10px;
+    border: 1px solid #d3d3d3;
+    border-radius: 15px;
+    overflow: hidden; /* This will clip the content to the border-radius */
+    width: 100%; /* Ensure the table takes full width of its container */
+}
+
+/* Additional style to ensure the table-responsive container doesn't interfere */
+.table-responsive {
+    border-radius: 15px !important;
+    overflow: visible !important; /* Allow shadow to be visible */
+    border: none !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.003), 0 4px 8px rgba(0, 0, 0, 0.067);
+}
+
+/* Fix first and last cell corners */
+.content-table thead tr:first-child th:first-child {
+    border-top-left-radius: 15px;
+}
+
+.content-table thead tr:first-child th:last-child {
+    border-top-right-radius: 15px;
+}
+
+.content-table tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 15px;
+}
+
+.content-table tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 15px;
 }
 
 .content-table thead tr {
@@ -265,26 +290,27 @@ body {
     color: #000;
     text-align: left;
     border-bottom: 0.5px solid #d3d3d3;
-
 }
 
 .content-table th,
 .content-table td {
     padding: 35px 15px;
     text-align:left;
+    border-bottom: 0.5px solid #d3d3d3;
 }
 
-.content-table tbody tr {
-    border-bottom: 0.5px solid #d3d3d3;
+/* Style table headers with lighter bold weight */
+.content-table th {
+    font-weight: 500;
 }
 
 .content-table tbody tr:nth-of-type(even) {
     background-color: transparent;
-
 }
 
-.content-table tbody tr:last-of-type {
-    border-bottom: 1px solid #d3d3d3  ;
+/* Remove border from last row cells to prevent double border with table border */
+.content-table tbody tr:last-of-type td {
+    border-bottom: none;
 }
 
 .content-table tbody tr.active-row {
