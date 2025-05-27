@@ -11,19 +11,16 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
 from base64 import b64encode, b64decode
 import os
+from dotenv import load_dotenv
 import logging
 import sqlite3
 import uuid
 import secrets  
 
+# Load environment variables
+load_dotenv()
 
 def login_required(f):
-    """
-    Decorate routes to require login.
-
-    https://flask.palletsprojects.com/en/latest/patterns/viewdecorators/
-    """
-
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if session.get("user_id") is None:
@@ -34,6 +31,11 @@ def login_required(f):
 
 def generate_token(email):
     """Generate a secure random token and store expiration time in payload"""
+    # Load JWT secret from environment
+    jwt_secret = os.getenv('JWT_SECRET')
+    if not jwt_secret:
+        raise ValueError("JWT_SECRET environment variable is not set")
+    
     # Generate a secure random token
     random_token = secrets.token_urlsafe(32)
     
@@ -43,7 +45,7 @@ def generate_token(email):
     
     # Store email and expiration in JWT payload
     payload = {'email': email, 'exp': exp_timestamp, 'token': random_token}
-    token = jwt.encode(payload, 'lDJb00kAG8RoAsRhIA^2rO4WAI)_PqhW', algorithm='HS256')
+    token = jwt.encode(payload, jwt_secret, algorithm='HS256')
     
     # Make sure we always return a string
     if isinstance(token, bytes):
@@ -55,12 +57,18 @@ def generate_token(email):
 def verify_token(token):
     """Verify the token is valid and not expired"""
     try:
+        # Load JWT secret from environment
+        jwt_secret = os.getenv('JWT_SECRET')
+        if not jwt_secret:
+            logging.error("JWT_SECRET environment variable is not set")
+            return False
+        
         # Ensure token is string
         if isinstance(token, bytes):
             token = token.decode('utf-8')
             
         # Decode and verify the JWT token
-        payload = jwt.decode(token, 'lDJb00kAG8RoAsRhIA^2rO4WAI)_PqhW', algorithms=['HS256'])
+        payload = jwt.decode(token, jwt_secret, algorithms=['HS256'])
         
         # Check if required fields are in the payload
         if 'email' not in payload or 'exp' not in payload:

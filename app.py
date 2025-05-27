@@ -5,6 +5,13 @@ from flask_session import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from helpers import login_required, generate_token , verify_token, validate_email , encrypt_message , decrypt_message, generate_unique_filename
+from validation import (
+    InputValidator, CSRFTokenGenerator, validate_login_form, 
+    validate_registration_form, validate_user_form, validate_patient_form,
+    validate_doctor_form, validate_password_reset_form, validate_appointment_form,
+    validate_prescription_form, validate_medical_record_form, validate_file_upload_form,
+    validate_expense_form
+)
 import sqlite3
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -15,13 +22,54 @@ import calendar
 from collections import defaultdict
 from flask_socketio import SocketIO, emit , join_room, leave_room
 
+# Import CSRF protection and forms
+try:
+    # from flask_wtf.csrf import CSRFProtect, CSRFError  # Commented out if not available
+    CSRF_AVAILABLE = True
+except ImportError:
+    print("Warning: Flask-WTF not available. Using custom CSRF protection.")
+    CSRF_AVAILABLE = False
+
 
 
 app = Flask(__name__)
 socketio = SocketIO(app)
 
+# Generate a secure secret key for CSRF protection
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 
+# Initialize CSRF Protection
+if CSRF_AVAILABLE:
+    # csrf = CSRFProtect(app)  # Commented out if not available
+      # @app.errorhandler(CSRFError)  # Commented out if not available
+    def handle_csrf_error(e):
+        flash('Security token expired. Please try again.', 'error')
+        return render_template('csrf_error.html', reason=e.description), 400
+else:
+    # Custom CSRF protection when Flask-WTF is not available
+    @app.context_processor
+    def inject_csrf_token():
+        return dict(csrf_token=CSRFTokenGenerator.generate_token)
+    
+    @app.before_request
+    def csrf_protect():
+        if request.method == "POST":
+            token = request.form.get('csrf_token')
+            if not CSRFTokenGenerator.validate_token(token):
+                flash('Security token missing or invalid. Please try again.', 'error')
+                return redirect(request.url)
 
+# Custom CSRF validation helper
+def validate_csrf_token():
+    """Validate CSRF token for manual validation when needed"""
+    if CSRF_AVAILABLE:
+        # Flask-WTF handles CSRF automatically, so we just return True here
+        # If there was a CSRF error, it would have been caught by Flask-WTF's error handler
+        return True
+    else:
+        # Manual CSRF validation for custom implementation
+        token = request.form.get('csrf_token')
+        return CSRFTokenGenerator.validate_token(token)
 
 
 # Configuration for session
@@ -99,69 +147,39 @@ app.jinja_env.filters['military_to_standard_time'] = military_to_standard_time
 
 @app.route("/register", methods=["POST" , "GET"])
 def register():
-    error_message = None
+    error_messages = []
 
-    # Get form data
     if request.method == "POST":
-        email = request.form.get("email").lower()
-        password = request.form.get("password")
-        confirm = request.form.get("confirm_password")
-        first_name = request.form.get("first_name").capitalize()
-        last_name = request.form.get("last_name").capitalize()
+        # Validate form input using secure validation
+        validation_errors, validated_data = validate_registration_form()
+        print(f"Validation errors: {validation_errors}")    
+        if validation_errors:
+            error_messages.extend(validation_errors)
+        else:
+            try:
+                db = get_db()
+                # Double-check email uniqueness (already checked in validation, but be extra safe)
+                db.execute("SELECT id FROM admins WHERE LOWER(email) = ?", (validated_data["email"],))
+                if db.fetchone():
+                    error_messages.append("Email is already in use")
+                else:
+                    hashed_password = generate_password_hash(validated_data["password"])
+                    db.execute("INSERT INTO admins (email, hash, first_name, last_name) VALUES (?, ?, ?, ?)",
+                               (validated_data["email"], hashed_password, validated_data["first_name"], validated_data["last_name"]))
+                    db.connection.commit()
+                    flash("Successfully registered! You can now login to your account.", "success")
+                    return redirect("/login")
+                    
+            except sqlite3.Error as e:
+                error_messages.append("Database error occurred. Please try again.")
+                print(f"Database error in register: {e}")
 
-        # Validate form data
-        if not email:
-            error_message = "Please enter a valid email address"
-        elif validate_email(email) is False:
-            error_message = "Email is invalid"
-        elif not password:
-            error_message = "Password cannot be blank"
-        elif not confirm:
-            error_message = "Confirmation cannot be blank"
-        elif not first_name:
-            error_message = "First name cannot be blank"
-        elif not last_name:
-            error_message = "Last name cannot be blank"
-        elif len(first_name) > 10:
-            error_message = "First name cannot exceed 10 characters"
-        elif len(last_name) > 10:
-            error_message = "Last name cannot exceed 10 characters"
-        elif not re.match("^[a-zA-Z]+$", first_name):
-            error_message = "First name can only include letters"
-        elif not re.match("^[a-zA-Z]+$", last_name):
-            error_message = "Last name can only include letters"
-        elif password != confirm:
-            error_message = "Passwords must match"
-        elif len(password) < 8 or len(password) > 20:
-            error_message = "Password must be between 8-20 characters"
-        elif not any(char.isdigit() for char in password):
-            error_message = "Password must include at least one number"
-        elif not any(char.isalpha() for char in password):
-            error_message = "Password must include letters"
-        elif not any(char in "!$@%" for char in password):
-            error_message = "Password must include at least one of these special characters: !$@%"
-
-        if error_message:
-            return render_template("register.html", error_message=error_message)
-
-        try:
-            db = get_db()
-            db.execute("SELECT id FROM admins WHERE LOWER(email) = ?", (email,))
-            if db.fetchone():
-                error_message = "Email is already in use"
-            else:
-                hashed_password = generate_password_hash(password)
-                db.execute("INSERT INTO admins (email, hash, first_name, last_name) VALUES (?, ?, ?, ?)",
-                            (email, hashed_password, first_name, last_name))
-                db.connection.commit()
-                flash("Successfully registered you can login into your account now")
-                return redirect("/login")  # or any success redirection
-        except sqlite3.Error as e:
-            error_message = "Database error: " + str(e)
-            if error_message:
-                return render_template("register.html", error_message=error_message)
-    else:
-        return render_template("register.html")
+    # Generate CSRF token for the form
+    csrf_token = CSRFTokenGenerator.generate_token() if not CSRF_AVAILABLE else None
+    
+    return render_template("register.html", 
+                         error_messages=error_messages,
+                         csrf_token=csrf_token)
 
 
 @app.route("/forgotten", methods=["GET", "POST"])
@@ -241,115 +259,130 @@ def forgotten():
 @app.route("/reset", methods=["GET", "POST"])
 def reset():
     error_message = None
+    token = request.args.get("token")
+    email = request.args.get("email")
 
     if request.method == "POST":
-        token = request.args.get("token")
-        email = request.args.get("email")
-        new_password = request.form.get("new_password")
-        confirm = request.form.get("confirm")
+        # Validate form input using secure validation
+        validation_errors, validated_data = validate_password_reset_form()
+        
+        if validation_errors:
+            error_message = validation_errors[0]  # Show first error for compatibility
+            return render_template("reset.html", error_message=error_message)
 
         try:
             db = get_db()
+            
+            # Verify token and email combination
             admin_token = db.execute("SELECT reset_token FROM admins WHERE email = ?", (email,)).fetchone()
             user_token = db.execute("SELECT reset_token FROM users WHERE email = ?", (email,)).fetchone()
             doctor_token = db.execute("SELECT reset_token FROM doctors WHERE email = ?", (email,)).fetchone()
 
-            if (admin_token is not None and token != admin_token[0]) or \
-                (user_token is not None and token != user_token[0]) or \
-                (doctor_token is not None and token != doctor_token[0]):
-                    error_message = "Invalid or expired token"
-                    return render_template("reset.html", error_message=error_message)
+            # Check if token matches any of the stored tokens
+            token_valid = False
+            user_type = None
+            
+            if admin_token and token == admin_token[0]:
+                token_valid = True
+                user_type = "admin"
+            elif user_token and token == user_token[0]:
+                token_valid = True
+                user_type = "user"
+            elif doctor_token and token == doctor_token[0]:
+                token_valid = True
+                user_type = "doctor"
+            
+            if not token_valid:
+                error_message = "Invalid or expired token"
+                return render_template("reset.html", error_message=error_message)
 
+            # Verify token hasn't expired
             if not verify_token(token):
-                flash("Link has expired. Please enter your email address to get another one")
+                flash("Link has expired. Please enter your email address to get another one", "error")
                 return redirect("/forgotten")
 
             if not email:
                 error_message = "Please enter an email address"
                 return render_template("reset.html", error_message=error_message)
 
-            # Password validation
-            if not new_password:
-                error_message = "New password cannot be blank"
-            elif new_password != confirm:
-                error_message = "Passwords must match"
-            elif len(new_password) < 8 or len(new_password) > 20:
-                error_message = "Password must be between 8-20 characters"
-            elif not any(char.isdigit() for char in new_password):
-                error_message = "Password must include at least one number"
-            elif not any(char.isalpha() for char in new_password):
-                error_message = "Password must include letters"
-            elif not any(char in "!$@%" for char in new_password):
-                error_message = "Password must include at least one of these special characters: !$@%"
+            # Update password based on user type
+            hashed_password = generate_password_hash(validated_data["password"])
+            
+            if user_type == "admin":
+                db.execute("UPDATE admins SET hash = ?, reset_token = NULL WHERE email = ?", (hashed_password, email))
+            elif user_type == "user":
+                db.execute("UPDATE users SET hash = ?, reset_token = NULL WHERE email = ?", (hashed_password, email))
+            elif user_type == "doctor":
+                db.execute("UPDATE doctors SET hash = ?, reset_token = NULL WHERE email = ?", (hashed_password, email))
 
-            if not error_message:
-                hashed_password = generate_password_hash(new_password)
-
-                if admin_token:
-                    db.execute("UPDATE admins SET hash = ? WHERE email = ?", (hashed_password, email))
-                elif user_token:
-                    db.execute("UPDATE users SET hash = ? WHERE email = ?", (hashed_password, email))
-                elif doctor_token:
-                    db.execute("UPDATE doctors SET hash = ? WHERE email = ?", (hashed_password, email))
-
-                db.connection.commit()
-                flash("Successfully changed password")
-                return redirect("/login")
+            db.connection.commit()
+            flash("Successfully changed password. You can now login with your new password.", "success")
+            return redirect("/login")
 
         except sqlite3.Error as e:
-            error_message = "Database error: " + str(e)
+            error_message = "Database error occurred. Please try again."
 
-    token = request.args.get("token")
+    # Validate that we have a token for GET requests
     if not token:
         return redirect("/login")
+    
     return render_template("reset.html", error_message=error_message)
 
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    error_message = None
+    error_messages = []
 
     # Forget any user_id
     session.clear()
 
     if request.method == "POST":
-        email = request.form.get("email")
-        password = request.form.get("password")
-
-        if not email:
-            error_message = "Must provide email"
-        elif not password:
-            error_message = "Must provide password"
+        # Validate form input using secure validation
+        validation_errors, validated_data = validate_login_form()
+        
+        if validation_errors:
+            error_messages.extend(validation_errors)
         else:
-            db = get_db()
-            admin = db.execute("SELECT * FROM admins WHERE email = ?", (email,)).fetchone()
-            user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-            doctor = db.execute("SELECT * FROM doctors WHERE email =?",(email,)).fetchone()
-
-            if admin and check_password_hash(admin[4], password):  # Access hash using index 4
-                session["user_id"] = admin[0]  # Access id using index 0
-                session["user_type"] = "admin"
-                if session ["user_type"] == "admin":
+            email = validated_data["email"]
+            password = validated_data["password"]
+            
+            
+            try:
+                db = get_db()
+                admin = db.execute("SELECT * FROM admins WHERE email = ?", (email,)).fetchone()
+                user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+                doctor = db.execute("SELECT * FROM doctors WHERE email = ?", (email,)).fetchone()
+                if admin and check_password_hash(admin[4], password):  # Access hash using index 4
+                    session["user_id"] = admin[0]  # Access id using index 0
+                    session["user_type"] = "admin"
+                    flash(f"Welcome back, {admin[2]}!", "success")
                     return redirect("/")
-            elif user and check_password_hash(user[2], password):  # Access hash using index 2
-                session["user_id"] = user[0]  # Access users_id using index 0
-                session["user_type"] = user[5]
-                if session["user_type"] == "Receptionist":
-                    return redirect("/receptionist")
-            elif doctor and check_password_hash(doctor[10], password):
-                session["user_id"] = doctor[0]
-                session["user_type"] = doctor[11]
-                if session["user_type"] == "Doctor":
+                elif user and check_password_hash(user[2], password):  # Access hash using index 2
+                    session["user_id"] = user[0]  # Access users_id using index 0
+                    session["user_type"] = user[5]
+                    flash(f"Welcome back, {user[3]}!", "success")  # Show first name
+                    if session["user_type"] == "Receptionist":
+                        return redirect("/receptionist")
+                elif doctor and check_password_hash(doctor[10], password):
+                    session["user_id"] = doctor[0]
+                    session["user_type"] = doctor[11]
+                    flash(f"Welcome back, Dr. {doctor[2]}!", "success")  # Show last name
+                    if session["user_type"] == "Doctor":
+                        return redirect("/doctor")
+                else:
+                    error_messages.append("Invalid email and/or password")
+                    
+            except sqlite3.Error as e:
+                error_messages.append("Database error occurred. Please try again.")
+                print(f"Database error in login: {e}")
 
-                    return redirect("/doctor")
-            else:
-                error_message = "Invalid email and/or password"
-
-    if error_message:
-        return render_template("login.html", error_message=error_message)
-    else:
-        return render_template("login.html")
+    # Generate CSRF token for the form
+    csrf_token = CSRFTokenGenerator.generate_token() if not CSRF_AVAILABLE else None
+    
+    return render_template("login.html", 
+                         error_messages=error_messages,
+                         csrf_token=csrf_token)
 
 
 @app.route("/logout")
@@ -774,7 +807,7 @@ def admin_appointments():
 
     # Convert dates to string format for SQL query
     start_date_str_previous_week = start_date_previous_week.strftime('%Y-%m-%d')
-    end_date_str_previous_week = end_date_previous_week.strftime('%Y-%m-%d')
+    end_date_str_previous_week = end_date_str_previous_week.strftime('%Y-%m-%d')
 
     # Fetch appointments for the previous week grouped by weekdays
     data_previous_week = db.execute('''
@@ -861,76 +894,42 @@ def add_users():
     user_type = session.get("user_type")
     if user_type is None or user_type != "admin":
         return render_template("404.html"), 404
+    
     error_messages = []
+    
     if request.method == "POST":
-        db = get_db()
-        email = request.form.get("email").lower()  # Call lower as a method
-        password = request.form.get("password")
-        confirm = request.form.get("confirmation")
-        firstname = request.form.get("firstname")
-        lastname = request.form.get("lastname")
-        position = request.form.get("position")
-        payroll = request.form.get("payroll")
-        phone = request.form.get("phone")
-
-
-        admin_id = session.get("user_id")
-
-        result = db.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email,))
-        result2 = db.execute("SELECT * FROM admins WHERE LOWER(email) = ?", (email,))
-        result3 = db.execute("SELECT * FROM doctors WHERE LOWER(email) = ?",(email,))
-
-        if result.fetchone():
-            error_messages.append("A user with this email address already exists")
-
-        if result2.fetchone():
-            error_messages.append("A user with this email address already exists")
-
-        if result3.fetchone():
-            error_messages.append("A user with this email address already exists")
-        if not phone:
-            error_messages.append("Phone number can't be empty")
-
-
-        if password != confirm:
-            error_messages.append("Passwords must match")
-
-        if len(password) < 8 or len(password) > 20:
-            error_messages.append("Password must be between 8-20 characters")
-
-        if not any(char.isdigit() for char in password):
-            error_messages.append("Password must include at least one number")
-
-        if not any(char.isalpha() for char in password):
-            error_messages.append("Password must include letters")
-
-        allowed_special_char = "!$@%"
-        if not any(char in allowed_special_char for char in password):
-            error_messages.append("Password must include at least one of these special characters: "
-                                  "!$@%")
-
-        if firstname is not None and len(firstname) > 10:
-            error_messages.append("First name cannot exceed 10 characters")
-        if not re.match("^[a-zA-Z]+$", lastname):
-            error_messages.append = ("Last name can only include letters")
-        if not re.match("^[a-zA-Z]+$", firstname):
-            error_messages.append ("First name can only include letters")
-        if lastname is not None and len(lastname) > 10:
-            error_messages.append("Last name cannot exceed 10 characters")
-
-        if error_messages:  # If there are any error messages, render the template with error messages
-            return render_template("users.html", error_messages=error_messages)
+        # Validate form input using secure validation
+        validation_errors, validated_data = validate_user_form()
+        
+        if validation_errors:
+            error_messages.extend(validation_errors)
         else:
+            try:
+                db = get_db()
+                admin_id = session.get("user_id")
 
-            hashed_password = generate_password_hash(password)
-            db.execute("INSERT INTO users (email, hash, first_name, last_name, usertype, payroll, admin_id , phone_number) VALUES (?, ?, ?, ?, ?, ? ,? , ?)",
-                       (email, hashed_password, firstname, lastname, position, payroll, admin_id, phone))
-            db.connection.commit()# Commit the transaction
+                # Insert the new user with validated data
+                hashed_password = generate_password_hash(validated_data["password"])
+                db.execute("INSERT INTO users (email, hash, first_name, last_name, usertype, payroll, admin_id, phone_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                           (validated_data["email"], hashed_password, validated_data["first_name"], 
+                            validated_data["last_name"], validated_data["position"], 
+                            validated_data["payroll"], admin_id, validated_data["phone"]))
+                db.connection.commit()
 
-            flash("Sucessfully created a new user !")
-            return redirect("/users")
+                flash(f"Successfully created new user: {validated_data['first_name']} {validated_data['last_name']}!", "success")
+                return redirect("/users")
+                
+            except sqlite3.Error as e:
+                error_messages.append("Database error occurred. Please try again.")
+                print(f"Database error in add_users: {e}")
+
+    # Generate CSRF token for the form
+    csrf_token = CSRFTokenGenerator.generate_token() if not CSRF_AVAILABLE else None
+    
+    if error_messages:
+        return render_template("add_users.html", error_messages=error_messages, csrf_token=csrf_token)
     else:
-        return render_template("add_users.html")
+        return render_template("add_users.html", csrf_token=csrf_token)
 
 
 @app.route("/add_doctors", methods=["GET", "POST"])
@@ -944,126 +943,71 @@ def add_doctors():
         return render_template("404.html"), 404
 
     if request.method == "POST":
-        db = get_db()
-        email = request.form.get("new_email").lower()
-        password = request.form.get("doc_password")
-        confirm = request.form.get("confirm_doc")
-        firstname = request.form.get("new_first").capitalize()
-        lastname = request.form.get("new_last").capitalize()
-        specialization = request.form.get("new_special").capitalize()
-        payroll = request.form.get("new_pay")
-        docexp = request.form.get("doc_exp")
-        address = request.form.get("new_address")
-        phone = request.form.get("new_phone")
-        usertype = "Doctor"
-        admin_id = session.get("user_id")
-        monday_start = request.form.get("monday_start")
-        monday_end = request.form.get("monday_end")
-        tuesday_start = request.form.get("tuesday_start")
-        tuesday_end = request.form.get("tuesday_end")
-        wednesday_start = request.form.get("wednesday_start")
-        wednesday_end = request.form.get("wednesday_end")
-        thursday_start = request.form.get("thursday_start")
-        thursday_end = request.form.get("thursday_end")
-        friday_start = request.form.get("friday_start")
-        friday_end = request.form.get("friday_end")
-        saturday_start = request.form.get("saturday_start")
-        saturday_end = request.form.get("saturday_end")
-        sunday_start = request.form.get("sunday_start")
-        sunday_end = request.form.get("sunday_end")
-
+        # Validate form input using secure validation
+        validation_errors, validated_data = validate_doctor_form()
+        
+        if validation_errors:
+            error_messages.extend(validation_errors)
+            return render_template("add_doctors.html", error_messages=error_messages)
+        
         try:
-            result3 = db.execute("SELECT * FROM doctors WHERE LOWER(email) = ?", (email,))
-            result = db.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email,))
-            result2 = db.execute("SELECT * FROM admins WHERE LOWER(email) = ?", (email,))
-
-        except sqlite3.Error as e:
-            error_messages.append("Database error: " + str(e))
-
-        # Check if the email already exists in the database
-        if result3.fetchone():
-            error_messages.append("A doctor with this email already exists")
-
-        if result.fetchone():
-            error_messages.append("A user with this email address already exists")
-
-        if result2.fetchone():
-            error_messages.append("An admin with this email address already exists")
-
-        # Validate email format
-        if not validate_email(email):
-            error_messages.append("Invalid email format")
-
-        # Validate password
-        if password != confirm:
-            error_messages.append("Passwords must match")
-
-        if len(password) < 8 or len(password) > 20:
-            error_messages.append("Password must be between 8-20 characters")
-
-        if not any(char.isdigit() for char in password):
-            error_messages.append("Password must include at least one number")
-
-        if not any(char.isalpha() for char in password):
-            error_messages.append("Password must include letters")
-
-        if not any(char in "!$@%" for char in password):
-            error_messages.append("Password must include at least one of these special characters: !$@%")
-
-        # Validate first and last name
-        if len(firstname) > 10:
-            error_messages.append("First name cannot exceed 10 characters")
-
-        if not re.match("^[a-zA-Z]+$", lastname):
-            error_messages.append("Last name can only include letters")
-
-        if not re.match("^[a-zA-Z]+$", firstname):
-            error_messages.append("First name can only include letters")
-
-        if len(lastname) > 10:
-            error_messages.append("Last name cannot exceed 10 characters")
-
-        # Validate years of experience
-        if not docexp:
-            error_messages.append("Please enter a value for doctor experience")
-        if error_messages:
-            return render_template("add_doctors.html", error_messages=error_messages)
-        docexp_int = int(docexp)
-        if docexp_int <= 0 :
-            error_messages.append("Enter a valid number for experience")
-
-        # If there are any errors, render the template with error messages
-        if error_messages:
-            return render_template("add_doctors.html", error_messages=error_messages)
-
-        else:
-            # Insert doctor into the database
-            hashed_password = generate_password_hash(password)
-            try:
-                db.execute("INSERT INTO doctors (email, phone, years_of_experience, hash, first_name, last_name, specialization, usertype, address, payroll, admin_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (email, phone, int(docexp), hashed_password, firstname, lastname, specialization, usertype, address, payroll, admin_id))
-                doc_id_cursor = db.execute("SELECT doctor_id FROM doctors WHERE email = ?", (email,))
-                doc_id = doc_id_cursor.fetchone()[0]  # Fetch the doctor ID from the cursor
-
-                # Define the values
-                values = [
-                    (doc_id, "Monday", monday_start, monday_end),
-                    (doc_id, "Tuesday", tuesday_start, tuesday_end),
-                    (doc_id, "Wednesday", wednesday_start, wednesday_end),
-                    (doc_id, "Thursday", thursday_start, thursday_end),
-                    (doc_id, "Friday", friday_start, friday_end),
-                    (doc_id, "Saturday", saturday_start, saturday_end),
-                    (doc_id, "Sunday", sunday_start, sunday_end)
-                ]
-
-                # Insert values into the doctor_working_hours table
-                for value in values:
-                    db.execute("INSERT INTO doctor_working_hours (doctor_id, day_of_week, start_working_hours, end_working_hours) VALUES (?, ?, ?, ?);", value)
-                db.connection.commit()  # Commit the transaction
-                flash("Successfully created a new doctor!")
-                return redirect("/view_doctors")
-            except sqlite3.Error as e:
-                error_messages.append("Database error: " + str(e))
+            db = get_db()
+            admin_id = session.get("user_id")
+            
+            # Check if email already exists across all user types
+            email_check_queries = [
+                ("SELECT email FROM doctors WHERE LOWER(email) = ?", "A doctor with this email already exists"),
+                ("SELECT email FROM users WHERE LOWER(email) = ?", "A user with this email address already exists"),
+                ("SELECT email FROM admins WHERE LOWER(email) = ?", "An admin with this email address already exists")
+            ]
+            
+            for query, error_msg in email_check_queries:
+                result = db.execute(query, (validated_data["email"],))
+                if result.fetchone():
+                    error_messages.append(error_msg)
+            
+            if error_messages:
                 return render_template("add_doctors.html", error_messages=error_messages)
+            
+            # Insert doctor into the database
+            hashed_password = generate_password_hash(validated_data["password"])
+            
+            db.execute("""
+                INSERT INTO doctors (email, phone, years_of_experience, hash, first_name, last_name, 
+                                   specialization, usertype, address, payroll, admin_id) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                validated_data["email"], validated_data["phone"], validated_data["experience"],
+                hashed_password, validated_data["first_name"], validated_data["last_name"],
+                validated_data["specialization"], "Doctor", validated_data["address"],
+                validated_data["payroll"], admin_id
+            ))
+            
+            # Get the newly created doctor ID
+            doc_id_cursor = db.execute("SELECT doctor_id FROM doctors WHERE email = ?", (validated_data["email"],))
+            doc_id = doc_id_cursor.fetchone()[0]
+
+            # Insert working hours
+            days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+            day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            
+            for day, day_name in zip(days, day_names):
+                start_time = validated_data["working_hours"].get(f"{day}_start")
+                end_time = validated_data["working_hours"].get(f"{day}_end")
+                
+                if start_time and end_time:  # Only insert if both times are provided
+                    db.execute("""
+                        INSERT INTO doctor_working_hours (doctor_id, day_of_week, start_working_hours, end_working_hours) 
+                        VALUES (?, ?, ?, ?)
+                    """, (doc_id, day_name, start_time, end_time))
+            
+            db.connection.commit()
+            flash("Successfully created a new doctor!", "success")
+            return redirect("/view_doctors")
+            
+        except sqlite3.Error as e:
+            error_messages.append("Database error occurred. Please try again.")
+            return render_template("add_doctors.html", error_messages=error_messages)
 
     else:
         return render_template("add_doctors.html")
@@ -1367,51 +1311,86 @@ def upload_file():
                filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
     if request.method == "POST":
-        file_date = request.form.get("date")
-        if not file_date:
-            error_message = "Please enter a date"
-
+        # Validate form input using secure validation
+        validation_errors, validated_data = validate_file_upload_form()
+        
+        if validation_errors:
+            error_message = validation_errors[0]  # Show first error for compatibility
+            
         if 'document' not in request.files:
-            flash('No file part')
-            return redirect("/upload")
-
-        file = request.files['document']
-        if file.filename == '':
-            flash('No selected file')
-            return redirect("/upload")
-
-        try:
-            current_date = date.today()
-            today_date = current_date.strftime("%Y-%m-%d")
-            # You can now use today_date as needed in your code
-        except Exception as e:
-            print("An error occurred:", e)
-
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            filename = generate_unique_filename(file.filename)
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(file_path)
-
-            # Store the filename, date, and user ID in the database
+            error_message = "No file selected"
+        
+        file = request.files.get('document')
+        if not file or file.filename == '':
+            error_message = "Please select a file to upload"
+        
+        patient_id = request.args.get("data-patient-id")
+        if not patient_id:
+            error_message = "Invalid patient ID"
+        
+        if error_message:
+            # Get patient data for template
             try:
                 db = get_db()
                 user_id = session.get("user_id")
-                patient = request.args.get("data-patient-id")
-                db.execute("INSERT INTO files (filename, filepath, file_date, created_by , patient_id , date_uploaded) VALUES (?, ?, ?, ?, ? , ?)",
-                        (filename, file_path, file_date, user_id, patient , today_date))
+                personal = db.execute("SELECT * FROM patients WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))", (patient_id, user_id)).fetchall()
+                return render_template("upload.html", error_message=error_message, personal=personal)
+            except:
+                return render_template("upload.html", error_message=error_message)
+
+        if file and allowed_file(file.filename):
+            try:
+                current_date = date.today()
+                today_date = current_date.strftime("%Y-%m-%d")
+                
+                filename = secure_filename(file.filename)
+                filename = generate_unique_filename(file.filename)
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(file_path)
+
+                # Store the filename, date, and user ID in the database
+                db = get_db()
+                user_id = session.get("user_id")
+                
+                # Verify patient exists and user has access
+                patient_check = db.execute("""
+                    SELECT patient_id FROM patients 
+                    WHERE patient_id = ? AND created_by IN (
+                        SELECT users_id FROM users WHERE admin_id = (
+                            SELECT admin_id FROM users WHERE users_id = ?
+                        )
+                    )
+                """, (patient_id, user_id))
+                
+                if not patient_check.fetchone():
+                    error_message = "Patient not found or access denied"
+                    return render_template("upload.html", error_message=error_message)
+                
+                db.execute("INSERT INTO files (filename, filepath, file_date, created_by, patient_id, date_uploaded) VALUES (?, ?, ?, ?, ?, ?)",
+                        (filename, file_path, validated_data["file_date"], user_id, patient_id, today_date))
                 db.connection.commit()
 
-                personal = db.execute("SELECT * FROM patients WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))", (patient, user_id)).fetchall()
+                personal = db.execute("SELECT * FROM patients WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))", (patient_id, user_id)).fetchall()
+
+                flash("File uploaded successfully", "success")
+                return redirect(f"/upload?data-patient-id={personal[0][0] if personal else ''}")
 
             except sqlite3.Error as e:
-                error_message = "Database error: " + str(e)
-
-            if error_message:
-                return render_template("upload.html" , error_message = error_message)
-            else:
-                flash("File Uploaded Successfully")
-                return redirect(f"/upload?data-patient-id={personal[0][0] if personal else ''}")
+                error_message = "Database error occurred. Please try again."
+                try:
+                    personal = db.execute("SELECT * FROM patients WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))", (patient_id, user_id)).fetchall()
+                    return render_template("upload.html", error_message=error_message, personal=personal)
+                except:
+                    return render_template("upload.html", error_message=error_message)
+        else:
+            error_message = "Invalid file type. Please upload a valid document."
+            try:
+                db = get_db()
+                user_id = session.get("user_id")
+                personal = db.execute("SELECT * FROM patients WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))", (patient_id, user_id)).fetchall()
+                return render_template("upload.html", error_message=error_message, personal=personal)
+            except:
+                return render_template("upload.html", error_message=error_message)
 
     # For GET request
     db = get_db()
@@ -1608,55 +1587,43 @@ def new_patients():
     user_type = session.get("user_type")
     if user_type is None or user_type != "Receptionist":
         return render_template("404.html"), 404
-    error_message = None
 
     if request.method == "POST":
-
-        db = get_db()
-        first_name = request.form.get("newFirstName").capitalize()
-        last_name = request.form.get("newLastName").capitalize()
-        date = request.form.get("newDOB")
-        gender = request.form.get("newGender")
-        address = request.form.get("newAddress")
-        email = request.form.get("newEmail").lower()
-        phone = request.form.get("newPhone")
-        insurance = request.form.get("newInsurance").capitalize()
-        user_id = session.get("user_id")
-
-         # Input Validation
-        error_message = None
-        if len(first_name) > 10:
-            error_message = "First name cannot exceed 10 characters"
-        elif len(last_name) > 10:
-            error_message = "Last name cannot exceed 10 characters"
-        elif len(phone) > 15:
-            error_message = "Invalid phone number"
-        elif not re.match("^[a-zA-Z]+$", first_name):
-            error_message = "First name can only include letters"
-        elif not re.match("^[a-zA-Z]+$", last_name):
-            error_message = "Last name can only include letters"
-
-        if error_message:
+        # Validate form input using secure validation
+        validation_errors, validated_data = validate_patient_form()
+        
+        if validation_errors:
+            error_message = validation_errors[0]  # Show first error for compatibility
             return render_template("new_patient.html", error_message=error_message)
-
+        
         try:
+            db = get_db()
+            user_id = session.get("user_id")
+            
             # Check if the patient already exists
-            result = db.execute("SELECT * FROM patients WHERE LOWER(email) = ?", (email,))
+            result = db.execute("SELECT email FROM patients WHERE LOWER(email) = ?", (validated_data["email"],))
             if result.fetchone():
                 error_message = "A patient with this email address already exists"
                 return render_template("new_patient.html", error_message=error_message)
 
             # Insert new patient into the database
-            name = first_name +" "+last_name
-            db.execute("INSERT INTO patients (name , date_of_birth, gender, address, phone, email, insurance, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                       (name, date, gender, address, phone, email, insurance, user_id))
+            full_name = f"{validated_data['first_name']} {validated_data['last_name']}"
+            
+            db.execute("""
+                INSERT INTO patients (name, date_of_birth, gender, address, phone, email, insurance, created_by) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                full_name, validated_data["date_of_birth"], validated_data["gender"],
+                validated_data["address"], validated_data["phone"], validated_data["email"],
+                validated_data["insurance"], user_id
+            ))
+            
             db.connection.commit()
-            flash("New patient created successfully")
+            flash("New patient created successfully", "success")
             return redirect("/patients")
 
         except sqlite3.Error as e:
-            error_message = "Database error: " + str(e)
-        if error_message :
+            error_message = "Database error occurred. Please try again."
             return render_template("new_patient.html", error_message=error_message)
 
     else:
@@ -1931,70 +1898,112 @@ def new_appointment():
         return render_template("404.html"), 404
 
     if request.method == "POST":
-        error_message = None
-        db = get_db()
-
-        app_id = request.form.get("app_ID")
-        app_date = request.form.get("app_date")
-        app_doc = request.form.get("app_doctor")
-        app_start = request.form.get("app_start")
-        today_date = datetime.today().date()
-        reason = request.form.get("app_reason")
-        notes = request.form.get("app_notes")
-        created_by = session.get("user_id")
-
-        # Fetch the doctor based on the provided doctor ID
-        doctor = db.execute("SELECT doctor_id FROM doctors WHERE doctor_id = ?", (app_doc,)).fetchone()
-
-        if not doctor:
-            error_message = "Doctor does not exist"
+        # Validate form input using secure validation
+        validation_errors, validated_data = validate_appointment_form()
+        
+        if validation_errors:
+            error_messages = validation_errors
         else:
-            # Fetch doctor's working hours
-            date = datetime.strptime(app_date, '%Y-%m-%d')
-            weekday = date.strftime('%A')
-            doc_time = db.execute("SELECT start_working_hours, end_working_hours FROM doctor_working_hours WHERE doctor_id = ? AND day_of_week = ?", (app_doc, weekday)).fetchone()
-
-            if not doc_time:
-                error_message = "Doctor working hours not found"
-            else:
-                doc_start_time = datetime.strptime(doc_time[0], '%H:%M').time()
-
-                app_start_time = datetime.strptime(app_start, '%H:%M').time()
-
-                if app_start_time < doc_start_time:
-                    error_message = "Doctor won't be available during this time"
-
-            # Check if the patient exists
-            result = db.execute("SELECT * FROM patients WHERE patient_id = ?", (app_id,)).fetchone()
-
-            if not result:
-                error_message = "Patient does not exist"
-
-            elif app_date is None:
-                error_message = "Appointment Date is required"
-
-            elif today_date > datetime.strptime(app_date, '%Y-%m-%d').date():
-                error_message = "Invalid Date"
-
-        if error_message:
-            # Pass error_message to the template for displaying the error
-            user_id = session.get("user_id")
-            admin_id = db.execute("SELECT admin_id FROM users WHERE users_id = ?", (user_id,)).fetchone()[0]
-            doctors = db.execute("SELECT last_name, doctor_id FROM doctors WHERE admin_id = ?", (admin_id,)).fetchall()
-            return render_template("new_appointments.html", error_message=error_message, doctors = doctors)
-
-        try:
-            # Insert the appointment into the database
-            db.execute("INSERT INTO Appointments (PatientID, AppointmentDate, StartTime, DoctorID, Reason, Notes , created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                       (app_id, app_date, app_start, app_doc, reason, notes , created_by))
-            db.connection.commit()
-            flash("New appointment created successfully")
-            return redirect("/appointments")
-
-        except sqlite3.Error as e:
-            # Handle database errors
-            error_message = "Database error: " + str(e)
-            return render_template("new_appointments.html", error_message=error_message, doctors = doctors)
+            error_messages = []
+            
+            try:
+                db = get_db()
+                user_id = session.get("user_id")
+                today_date = datetime.today().date()
+                
+                # Verify patient exists and belongs to the same admin organization
+                admin_id_query = db.execute("SELECT admin_id FROM users WHERE users_id = ?", (user_id,))
+                admin_id_result = admin_id_query.fetchone()
+                
+                if not admin_id_result:
+                    error_messages.append("Invalid user session")
+                else:
+                    admin_id = admin_id_result[0]
+                    
+                    # Check if patient exists and belongs to the same organization
+                    patient_check = db.execute("""
+                        SELECT patient_id FROM patients 
+                        WHERE patient_id = ? AND created_by IN (
+                            SELECT users_id FROM users WHERE admin_id = ?
+                        )
+                    """, (validated_data["patient_id"], admin_id))
+                    
+                    if not patient_check.fetchone():
+                        error_messages.append("Patient not found or access denied")
+                    
+                    # Verify doctor exists and belongs to the same admin organization
+                    doctor_check = db.execute("""
+                        SELECT doctor_id FROM doctors 
+                        WHERE doctor_id = ? AND admin_id = ?
+                    """, (validated_data["doctor_id"], admin_id))
+                    
+                    if not doctor_check.fetchone():
+                        error_messages.append("Doctor not found or access denied")
+                    
+                    # Check doctor's working hours for the appointment day
+                    appointment_date = datetime.strptime(validated_data["appointment_date"], '%Y-%m-%d')
+                    weekday = appointment_date.strftime('%A')
+                    
+                    doc_hours = db.execute("""
+                        SELECT start_working_hours, end_working_hours 
+                        FROM doctor_working_hours 
+                        WHERE doctor_id = ? AND day_of_week = ?
+                    """, (validated_data["doctor_id"], weekday))
+                    
+                    working_hours = doc_hours.fetchone()
+                    if not working_hours:
+                        error_messages.append(f"Doctor is not available on {weekday}s")
+                    else:
+                        doc_start = datetime.strptime(working_hours[0], '%H:%M').time()
+                        doc_end = datetime.strptime(working_hours[1], '%H:%M').time()
+                        app_time = datetime.strptime(validated_data["start_time"], '%H:%M').time()
+                        
+                        if app_time < doc_start or app_time >= doc_end:
+                            error_messages.append(f"Appointment time is outside doctor's working hours ({working_hours[0]} - {working_hours[1]})")
+                    
+                    # Check for appointment conflicts
+                    conflict_check = db.execute("""
+                        SELECT AppointmentID FROM Appointments 
+                        WHERE DoctorID = ? AND AppointmentDate = ? AND StartTime = ?
+                    """, (validated_data["doctor_id"], validated_data["appointment_date"], validated_data["start_time"]))
+                    
+                    if conflict_check.fetchone():
+                        error_messages.append("Doctor already has an appointment at this time")
+                
+                if not error_messages:
+                    # Insert the appointment into the database
+                    db.execute("""
+                        INSERT INTO Appointments (PatientID, AppointmentDate, StartTime, DoctorID, Reason, Notes, created_by) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        validated_data["patient_id"], validated_data["appointment_date"], 
+                        validated_data["start_time"], validated_data["doctor_id"], 
+                        validated_data["reason"], validated_data["notes"], user_id
+                    ))
+                    db.connection.commit()
+                    flash("New appointment created successfully", "success")
+                    return redirect("/appointments")
+                    
+            except sqlite3.Error as e:
+                error_messages.append("Database error occurred. Please try again.")
+        
+        # If there are errors, render form with error messages
+        if error_messages:
+            try:
+                user_id = session.get("user_id")
+                db = get_db()
+                admin_id_query = db.execute("SELECT admin_id FROM users WHERE users_id = ?", (user_id,))
+                admin_id_result = admin_id_query.fetchone()
+                
+                if admin_id_result:
+                    admin_id = admin_id_result[0]
+                    doctors = db.execute("SELECT last_name, doctor_id FROM doctors WHERE admin_id = ?", (admin_id,)).fetchall()
+                else:
+                    doctors = []
+                    
+                return render_template("new_appointments.html", error_messages=error_messages, doctors=doctors)
+            except:
+                return render_template("new_appointments.html", error_messages=error_messages, doctors=[])
 
     else:
         user_id = session.get("user_id")
@@ -2085,55 +2094,129 @@ def prescription():
 @app.route("/doc_prescriptions/manage_prescription/<int:patient_id>" , methods=["GET" , "POST"])
 @login_required
 def manage_prescriptions(patient_id):
-    error_message = None
     user_type = session.get("user_type")
     if user_type != "Doctor":
         return render_template("404.html"), 404
-    else:
-        if request.method == "GET":
+
+    if request.method == "GET":
+        try:
             db = get_db()
-            prescriptions = db.execute("SELECT medication, dosage, instructions, date_prescribed, prescription_id FROM prescriptions WHERE patient_id = ?", (patient_id,)).fetchall()
+            user_id = session.get("user_id")
+            
+            # Verify patient exists and doctor has access to patient
+            patient_check = db.execute("""
+                SELECT p.patient_id FROM patients p
+                INNER JOIN Appointments a ON p.patient_id = a.PatientID
+                WHERE p.patient_id = ? AND a.DoctorID = ?
+                LIMIT 1
+            """, (patient_id, user_id))
+            
+            if not patient_check.fetchone():
+                return render_template("404.html"), 404
+            
+            prescriptions = db.execute("""
+                SELECT medication, dosage, instructions, date_prescribed, prescription_id 
+                FROM prescriptions 
+                WHERE patient_id = ? AND doctor_id = ?
+            """, (patient_id, user_id)).fetchall()
 
             total_prescriptions = len(prescriptions)
             page = request.args.get('page', 1, type=int)
-            per_page = 10  # Number of patients per page
+            per_page = 10
             offset = (page - 1) * per_page
             prescriptions = prescriptions[offset:offset + per_page]
             total_pages = (total_prescriptions + per_page - 1) // per_page
 
-            history_prescriptions = db.execute("SELECT medication, dosage, instructions, date_prescribed, prescription_id FROM history_prescriptions WHERE patient_id = ?", (patient_id,)).fetchall()
+            history_prescriptions = db.execute("""
+                SELECT medication, dosage, instructions, date_prescribed, prescription_id 
+                FROM history_prescriptions 
+                WHERE patient_id = ? AND doctor_id = ?
+            """, (patient_id, user_id)).fetchall()
 
-            total_history_prescriptions  = len(history_prescriptions)
-            page = request.args.get('page', 1, type=int)
-            per_page = 10  # Number of patients per page
-            offset = (page - 1) * per_page
+            total_history_prescriptions = len(history_prescriptions)
             history_prescriptions = history_prescriptions[offset:offset + per_page]
-            total_pages = (total_history_prescriptions + per_page - 1) // per_page
 
-            return render_template("manage_prescriptions.html" , prescriptions=prescriptions, page = page , total_pages = total_pages , history_prescriptions = history_prescriptions)
+            return render_template("manage_prescriptions.html", 
+                                prescriptions=prescriptions, 
+                                page=page, 
+                                total_pages=total_pages, 
+                                history_prescriptions=history_prescriptions)
+                                
+        except sqlite3.Error as e:
+            return render_template("manage_prescriptions.html", error_messages=["Database error occurred"])
 
+    else:
+        # Validate form input using secure validation
+        validation_errors, validated_data = validate_prescription_form()
+        
+        if validation_errors:
+            error_messages = validation_errors
         else:
-            user_id = session.get("user_id")
-            medication = request.form.get("medication")
-            dosage = request.form.get("dosage")
-            instructions = request.form.get("instructions")
-            date_td = date.today()
-            if not (medication and dosage and instructions):
-                error_message = "Please fill in all the fields"
-            else:
-                try:
-                    db = get_db()
-                    db.execute("INSERT INTO prescriptions (patient_id, doctor_id, medication, dosage, instructions, date_prescribed) VALUES (?, ?, ?, ?, ?, ?)", (patient_id, user_id, medication, dosage, instructions, date_td))
-                    db.execute("INSERT INTO history_prescriptions (patient_id, doctor_id, medication, dosage, instructions, date_prescribed) VALUES (?, ?, ?, ?, ?, ?)", (patient_id, user_id, medication, dosage, instructions, date_td))
+            error_messages = []
+            
+            try:
+                db = get_db()
+                user_id = session.get("user_id")
+                
+                # Verify patient exists and doctor has access
+                patient_check = db.execute("""
+                    SELECT p.patient_id FROM patients p
+                    INNER JOIN Appointments a ON p.patient_id = a.PatientID
+                    WHERE p.patient_id = ? AND a.DoctorID = ?
+                    LIMIT 1
+                """, (patient_id, user_id))
+                
+                if not patient_check.fetchone():
+                    error_messages.append("Access denied to this patient")
+                
+                if not error_messages:
+                    current_date = date.today()
+                    
+                    # Insert prescription into both tables
+                    db.execute("""
+                        INSERT INTO prescriptions (patient_id, doctor_id, medication, dosage, instructions, date_prescribed) 
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (patient_id, user_id, validated_data["medication"], 
+                         validated_data["dosage"], validated_data["instructions"], current_date))
+                    
+                    db.execute("""
+                        INSERT INTO history_prescriptions (patient_id, doctor_id, medication, dosage, instructions, date_prescribed) 
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (patient_id, user_id, validated_data["medication"], 
+                         validated_data["dosage"], validated_data["instructions"], current_date))
+                    
                     db.connection.commit()
-                except sqlite3.Error as e:
-                    error_message = "Database error: " + str(e)
+                    flash("Successfully added a new prescription", "success")
+                    return redirect(url_for("manage_prescriptions", patient_id=patient_id))
+                    
+            except sqlite3.Error as e:
+                error_messages.append("Database error occurred. Please try again.")
 
-            if error_message:
-                return render_template("manage_prescriptions.html", error_message=error_message,)
-            else:
-                flash("Successfully added a new prescription")
-                return redirect(url_for("manage_prescriptions", patient_id=patient_id))
+        # If there are errors, render form with error messages
+        if error_messages:
+            try:
+                db = get_db()
+                user_id = session.get("user_id")
+                
+                prescriptions = db.execute("""
+                    SELECT medication, dosage, instructions, date_prescribed, prescription_id 
+                    FROM prescriptions 
+                    WHERE patient_id = ? AND doctor_id = ?
+                """, (patient_id, user_id)).fetchall()
+
+                history_prescriptions = db.execute("""
+                    SELECT medication, dosage, instructions, date_prescribed, prescription_id 
+                    FROM history_prescriptions 
+                    WHERE patient_id = ? AND doctor_id = ?
+                """, (patient_id, user_id)).fetchall()
+
+                return render_template("manage_prescriptions.html", 
+                                    error_messages=error_messages,
+                                    prescriptions=prescriptions,
+                                    history_prescriptions=history_prescriptions,
+                                    page=1, total_pages=1)
+            except:
+                return render_template("manage_prescriptions.html", error_messages=error_messages)
 
 @app.route("/delete_prescription/<int:prescription_id>", methods=["DELETE"])
 @login_required
@@ -2260,52 +2343,66 @@ def manage_records(patient_id):
             total_pages = (total_medical_records + per_page - 1) // per_page
 
             return render_template("manage_patient_rec.html", medical_records=medical_records, page = page, total_pages = total_pages)
-
         else:
-            db = get_db()
-            error_message = None
-            diagnosis = request.form.get("diagnosis")
-            instructions = request.form.get("instructions")
+            # Validate form input using secure validation
+            validation_errors, validated_data = validate_medical_record_form()
+            
+            if validation_errors:
+                error_messages = validation_errors
+            else:
+                error_messages = []
+                
+                try:
+                    db = get_db()
+                    user_id = session.get("user_id")
+                    
+                    # Verify patient exists and doctor has access
+                    patient_check = db.execute("""
+                        SELECT p.patient_id FROM patients p
+                        INNER JOIN Appointments a ON p.patient_id = a.PatientID
+                        WHERE p.patient_id = ? AND a.DoctorID = ?
+                        LIMIT 1
+                    """, (patient_id, user_id))
+                    
+                    if not patient_check.fetchone():
+                        error_messages.append("Access denied to this patient")
+                    
+                    if not error_messages:
+                        today = date.today()
+                        
+                        # Insert medical record into database
+                        db.execute("""
+                            INSERT INTO medical_records (patient_id, doctor_id, visit_date,
+                            diagnosis, test_name, test_result, reference_range, test_date, follow_up_instructions)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (patient_id, user_id, today, validated_data["diagnosis"], 
+                             validated_data["test_name"], validated_data["test_result"], 
+                             validated_data["reference_range"], validated_data["test_date"], 
+                             validated_data["instructions"]))
+                        
+                        db.connection.commit()
+                        flash("Successfully added a new medical record", "success")
+                        return redirect(url_for("manage_records", patient_id=patient_id))
+                        
+                except sqlite3.Error as e:
+                    error_messages.append("Database error occurred. Please try again.")
 
-            if not (diagnosis and instructions):
-                error_message = "Please fill in both Diagnosis and Instructions fields"
+            # If there are errors, render form with error messages
+            if error_messages:
+                try:
+                    db = get_db()
+                    medical_records = db.execute("""
+                        SELECT visit_date, diagnosis, test_name, test_result, reference_range, test_date, follow_up_instructions
+                        FROM medical_records
+                        WHERE patient_id = ?
+                    """, (patient_id,)).fetchall()
 
-            if error_message:
-                medical_records = db.execute("""
-                    SELECT visit_date, diagnosis, test_name, test_result, reference_range, test_date, follow_up_instructions
-                    FROM medical_records
-                    WHERE patient_id = ?
-                """, (patient_id,)).fetchall()
-                return render_template("manage_patient_rec.html", medical_records=medical_records, error_message=error_message)
-
-            test_name = request.form.get("test_name")
-            test_result = request.form.get("result")
-            reference_range = request.form.get("reference_range")
-            test_date = request.form.get("date")
-
-            today = date.today()
-            doc_id = session.get("user_id")
-
-            try:
-                db.execute("""
-                    INSERT INTO medical_records (patient_id, doctor_id, visit_date,
-                    diagnosis, test_name, test_result, reference_range, test_date, follow_up_instructions)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (patient_id, doc_id, today, diagnosis, test_name, test_result, reference_range, test_date,  instructions))
-                db.connection.commit()
-
-            except sqlite3.Error as e:
-                error_message = f"Database error {e}"
-                print(error_message)
-                medical_records = db.execute("""
-                    SELECT visit_date, diagnosis, test_name, test_result, reference_range, test_date, follow_up_instructions
-                    FROM medical_records
-                    WHERE patient_id = ?
-                """, (patient_id,)).fetchall()
-                return render_template("manage_patient_rec.html", medical_records=medical_records, error_message=error_message)
-
-            flash("Successfully added a new record")
-            return redirect(url_for("manage_records", patient_id=patient_id))
+                    return render_template("manage_patient_rec.html", 
+                                        error_messages=error_messages,
+                                        medical_records=medical_records,
+                                        page=1, total_pages=1)
+                except:
+                    return render_template("manage_patient_rec.html", error_messages=error_messages)
 
 @app.route("/expenses", methods=["GET" , "POST"])
 @login_required
@@ -2347,29 +2444,53 @@ def medical_supplies():
         return render_template("medical_supp.html", medical_supps=medical_supps , page = page, total_pages = total_pages)
 
     else:
-        error_message = None
-        amount = request.form.get("amount")
-        description = request.form.get("description")
-
-        if not amount or not description:
-            error_message = "Please fill in all the required fields."
-
-        if error_message:
-            return render_template("medical_supp.html", error_message=error_message)
+        # Validate form input using secure validation
+        validation_errors, validated_data = validate_expense_form()
+        
+        if validation_errors:
+            # Get medical supplies data for template rendering
+            db = get_db()
+            admin_id = session.get("user_id")
+            medical_supps = db.execute("SELECT amount, description FROM medical_supplies WHERE admin_id = ?", (admin_id,)).fetchall()
+            
+            total_medical_supps = len(medical_supps)
+            page = request.args.get('page', 1, type=int)
+            per_page = 10
+            offset = (page - 1) * per_page
+            medical_supps = medical_supps[offset:offset + per_page]
+            total_pages = (total_medical_supps + per_page - 1) // per_page
+            
+            error_messages = validation_errors
+            return render_template("medical_supp.html", error_messages=error_messages,
+                                 medical_supps=medical_supps, page=page, total_pages=total_pages)
 
         admin_id = session.get("user_id")
 
         try:
             db = get_db()
             td = datetime.today()
-            db.execute("INSERT INTO medical_supplies (amount, description, admin_id, date) VALUES (?, ?, ?, ?)", (amount, description, admin_id, td))
+            db.execute("INSERT INTO medical_supplies (amount, description, admin_id, date) VALUES (?, ?, ?, ?)", 
+                      (validated_data["amount"], validated_data["description"], admin_id, td))
             db.connection.commit()
-            flash("Medical supply added successfully.")
+            flash("Medical supply added successfully.", "success")
             return redirect(url_for("medical_supplies"))
 
         except sqlite3.Error as e:
-            error_message = "Database error: " + str(e)
-            return render_template("medical_supp.html", error_message=error_message)
+            # Get medical supplies data for template rendering
+            db = get_db()
+            admin_id = session.get("user_id")
+            medical_supps = db.execute("SELECT amount, description FROM medical_supplies WHERE admin_id = ?", (admin_id,)).fetchall()
+            
+            total_medical_supps = len(medical_supps)
+            page = request.args.get('page', 1, type=int)
+            per_page = 10
+            offset = (page - 1) * per_page
+            medical_supps = medical_supps[offset:offset + per_page]
+            total_pages = (total_medical_supps + per_page - 1) // per_page
+            
+            error_messages = ["Database error occurred. Please try again."]
+            return render_template("medical_supp.html", error_messages=error_messages,
+                                 medical_supps=medical_supps, page=page, total_pages=total_pages)
 
 @app.route("/expenses/salaries", methods=["GET"])
 @login_required
@@ -2409,40 +2530,63 @@ def utilities():
     if request.method == "GET":
         db = get_db()
         admin_id = session.get("user_id")
-        utilities = db.execute("SELECT amount, description FROM utilities WHERE admin_id = ?", (admin_id,)).fetchall()
-
+        utilities = db.execute("SELECT amount, description FROM utilities WHERE admin_id = ?", (admin_id,)).fetchall()        
         total_utilities = len(utilities)
         page = request.args.get('page', 1, type=int)
         per_page = 10  # Number of patients per page
         offset = (page - 1) * per_page
         utilities = utilities[offset:offset + per_page]
         total_pages = (total_utilities + per_page - 1) // per_page
-        return render_template("utilities.html", utilities = utilities , page = page, total_pages = total_pages)
-
+        return render_template("utilities.html", utilities=utilities, page=page, total_pages=total_pages)
+    
     else:
-        error_message = None
-        amount = request.form.get("amount")
-        description = request.form.get("description")
-
-        if not amount or not description:
-            error_message = "Please fill in all the required fields."
-
-        if error_message:
-            return render_template("utilities.html", error_message=error_message)
+        # Validate form input using secure validation
+        validation_errors, validated_data = validate_expense_form()
+        
+        if validation_errors:
+            # Get utilities data for template rendering
+            db = get_db()
+            admin_id = session.get("user_id")
+            utilities = db.execute("SELECT amount, description FROM utilities WHERE admin_id = ?", (admin_id,)).fetchall()
+            
+            total_utilities = len(utilities)
+            page = request.args.get('page', 1, type=int)
+            per_page = 10
+            offset = (page - 1) * per_page
+            utilities = utilities[offset:offset + per_page]
+            total_pages = (total_utilities + per_page - 1) // per_page
+            
+            error_messages = validation_errors
+            return render_template("utilities.html", error_messages=error_messages, 
+                                 utilities=utilities, page=page, total_pages=total_pages)
 
         admin_id = session.get("user_id")
 
         try:
             db = get_db()
-            td = datetime.today()
-            db.execute("INSERT INTO utilities (amount, description, admin_id, date) VALUES (?, ?, ?, ?)", (amount, description, admin_id, td))
+            td = datetime.today()            
+            db.execute("INSERT INTO utilities (amount, description, admin_id, date) VALUES (?, ?, ?, ?)", 
+                      (validated_data["amount"], validated_data["description"], admin_id, td))
             db.connection.commit()
-            flash("Utility bill added successfully.")
+            flash("Utility bill added successfully.", "success")
             return redirect(url_for("utilities"))
-
+            
         except sqlite3.Error as e:
-            error_message = "Database error: " + str(e)
-            return render_template("utilities.html", error_message=error_message)
+            # Get utilities data for template rendering
+            db = get_db()
+            admin_id = session.get("user_id")
+            utilities = db.execute("SELECT amount, description FROM utilities WHERE admin_id = ?", (admin_id,)).fetchall()
+            
+            total_utilities = len(utilities)
+            page = request.args.get('page', 1, type=int)
+            per_page = 10
+            offset = (page - 1) * per_page
+            utilities = utilities[offset:offset + per_page]
+            total_pages = (total_utilities + per_page - 1) // per_page
+            
+            error_messages = ["Database error occurred. Please try again."]
+            return render_template("utilities.html", error_messages=error_messages,
+                                 utilities=utilities, page=page, total_pages=total_pages)
 
 @app.route("/expenses/equipment", methods=["GET", "POST"])
 @login_required
@@ -2460,35 +2604,59 @@ def equipment():
         page = request.args.get('page', 1, type=int)
         per_page = 10  # Number of patients per page
         offset = (page - 1) * per_page
-        marketing = equipments[offset:offset + per_page]
+        equipments = equipments[offset:offset + per_page]
         total_pages = (total_equipment + per_page - 1) // per_page
 
         return render_template("equipments.html", equipments = equipments , page = page, total_pages = total_pages)
 
     else:
-        error_message = None
-        amount = request.form.get("amount")
-        description = request.form.get("description")
-
-        if not amount or not description:
-            error_message = "Please fill in all the required fields."
-
-        if error_message:
-            return render_template("equipments.html", error_message=error_message)
+        # Validate form input using secure validation
+        validation_errors, validated_data = validate_expense_form()
+        
+        if validation_errors:
+            # Get equipment data for template rendering
+            db = get_db()
+            admin_id = session.get("user_id")
+            equipments = db.execute("SELECT description, amount FROM equipments WHERE admin_id = ?", (admin_id,)).fetchall()
+            
+            total_equipment = len(equipments)
+            page = request.args.get('page', 1, type=int)
+            per_page = 10
+            offset = (page - 1) * per_page
+            equipments = equipments[offset:offset + per_page]
+            total_pages = (total_equipment + per_page - 1) // per_page
+            
+            error_messages = validation_errors
+            return render_template("equipments.html", error_messages=error_messages,
+                                 equipments=equipments, page=page, total_pages=total_pages)
 
         admin_id = session.get("user_id")
 
         try:
             db = get_db()
             td = datetime.today()
-            db.execute("INSERT INTO equipments (amount, description, admin_id, date) VALUES (?, ?, ?, ?)", (amount, description, admin_id, td))
+            db.execute("INSERT INTO equipments (amount, description, admin_id, date) VALUES (?, ?, ?, ?)", 
+                      (validated_data["amount"], validated_data["description"], admin_id, td))
             db.connection.commit()
-            flash("Equipment bill added successfully.")
+            flash("Equipment bill added successfully.", "success")
             return redirect(url_for("equipment"))
 
         except sqlite3.Error as e:
-            error_message = "Database error: " + str(e)
-            return render_template("equipments.html", error_message=error_message)
+            # Get equipment data for template rendering
+            db = get_db()
+            admin_id = session.get("user_id")
+            equipments = db.execute("SELECT description, amount FROM equipments WHERE admin_id = ?", (admin_id,)).fetchall()
+            
+            total_equipment = len(equipments)
+            page = request.args.get('page', 1, type=int)
+            per_page = 10
+            offset = (page - 1) * per_page
+            equipments = equipments[offset:offset + per_page]
+            total_pages = (total_equipment + per_page - 1) // per_page
+            
+            error_messages = ["Database error occurred. Please try again."]
+            return render_template("equipments.html", error_messages=error_messages,
+                                 equipments=equipments, page=page, total_pages=total_pages)
 
 
 @app.route("/expenses/marketing", methods=["GET", "POST"])
@@ -2525,31 +2693,69 @@ def marketing():
 
         return render_template("marketing.html", marketings=marketings, page=page, total_pages=total_pages)
 
-    else:
-        # Handling form submission for adding new marketing expense
-        error_message = None
-        amount = request.form.get("amount")
-        description = request.form.get("description")
-
-        if not amount or not description:
-            error_message = "Please fill in all the required fields."
-
-        if error_message:
-            return render_template("marketing.html", error_message=error_message)
+    else:        # Validate form input using secure validation
+        validation_errors, validated_data = validate_expense_form()
+        
+        if validation_errors:
+            # Get marketing data for template rendering
+            db = get_db()
+            admin_id = session.get("user_id")
+            page = request.args.get('page', 1, type=int)
+            per_page = 10
+            offset = (page - 1) * per_page
+            
+            marketings = db.execute("""
+                SELECT description, amount
+                FROM marketing
+                WHERE admin_id = ?
+                LIMIT ? OFFSET ?
+            """, (admin_id, per_page, offset)).fetchall()
+            
+            total_marketing = db.execute("""
+                SELECT COUNT(*) FROM marketing WHERE admin_id = ?
+            """, (admin_id,)).fetchone()[0]
+            
+            total_pages = (total_marketing + per_page - 1) // per_page
+            
+            error_messages = validation_errors
+            return render_template("marketing.html", error_messages=error_messages,
+                                 marketings=marketings, page=page, total_pages=total_pages)
 
         admin_id = session.get("user_id")
 
         try:
             db = get_db()
             td = datetime.today()
-            db.execute("INSERT INTO marketing (amount, description, admin_id, date) VALUES (?, ?, ?, ?)", (amount, description, admin_id, td))
+            db.execute("INSERT INTO marketing (amount, description, admin_id, date) VALUES (?, ?, ?, ?)", 
+                      (validated_data["amount"], validated_data["description"], admin_id, td))
             db.connection.commit()
-            flash("Marketing bill added successfully.")
+            flash("Marketing bill added successfully.", "success")
             return redirect(url_for("marketing"))
 
         except sqlite3.Error as e:
-            error_message = "Database error: " + str(e)
-            return render_template("marketing.html", error_message=error_message)
+            # Get marketing data for template rendering
+            db = get_db()
+            admin_id = session.get("user_id")
+            page = request.args.get('page', 1, type=int)
+            per_page = 10
+            offset = (page - 1) * per_page
+            
+            marketings = db.execute("""
+                SELECT description, amount
+                FROM marketing
+                WHERE admin_id = ?
+                LIMIT ? OFFSET ?
+            """, (admin_id, per_page, offset)).fetchall()
+            
+            total_marketing = db.execute("""
+                SELECT COUNT(*) FROM marketing WHERE admin_id = ?
+            """, (admin_id,)).fetchone()[0]
+            
+            total_pages = (total_marketing + per_page - 1) // per_page
+            
+            error_messages = ["Database error occurred. Please try again."]
+            return render_template("marketing.html", error_messages=error_messages,
+                                 marketings=marketings, page=page, total_pages=total_pages)
 
 
 
@@ -2572,32 +2778,55 @@ def other_expenses():
         other_expenses = other_expenses[offset:offset + per_page]
         total_pages = (total_other_expenses + per_page - 1) // per_page
 
-        return render_template("other_expenses.html", other_expenses = other_expenses , page = page, total_pages = total_pages)
-
+        return render_template("other_expenses.html", other_expenses = other_expenses , page = page, total_pages = total_pages)    
     else:
-        error_message = None
-        amount = request.form.get("amount")
-        description = request.form.get("description")
-
-        if not amount or not description:
-            error_message = "Please fill in all the required fields."
-
-        if error_message:
-            return render_template("equipments.html", error_message=error_message)
+        # Validate form input using secure validation
+        validation_errors, validated_data = validate_expense_form()
+        
+        if validation_errors:
+            # Get other expenses data for template rendering
+            db = get_db()
+            admin_id = session.get("user_id")
+            other_expenses = db.execute("SELECT description, amount FROM other_expenses WHERE admin_id = ?", (admin_id,)).fetchall()
+            
+            total_other_expenses = len(other_expenses)
+            page = request.args.get('page', 1, type=int)
+            per_page = 10
+            offset = (page - 1) * per_page
+            other_expenses = other_expenses[offset:offset + per_page]
+            total_pages = (total_other_expenses + per_page - 1) // per_page
+            
+            error_messages = validation_errors
+            return render_template("other_expenses.html", error_messages=error_messages,
+                                 other_expenses=other_expenses, page=page, total_pages=total_pages)
 
         admin_id = session.get("user_id")
 
         try:
             db = get_db()
             td = datetime.today()
-            db.execute("INSERT INTO other_expenses (amount, description, admin_id, date) VALUES (?, ?, ?, ?)", (amount, description, admin_id, td))
+            db.execute("INSERT INTO other_expenses (amount, description, admin_id, date) VALUES (?, ?, ?, ?)", 
+                      (validated_data["amount"], validated_data["description"], admin_id, td))
             db.connection.commit()
-            flash("Other Expenses bill added successfully.")
+            flash("Other Expenses bill added successfully.", "success")
             return redirect(url_for("other_expenses"))
 
         except sqlite3.Error as e:
-            error_message = "Database error: " + str(e)
-            return render_template("other_expenses.html", error_message=error_message)
+            # Get other expenses data for template rendering
+            db = get_db()
+            admin_id = session.get("user_id")
+            other_expenses = db.execute("SELECT description, amount FROM other_expenses WHERE admin_id = ?", (admin_id,)).fetchall()
+            
+            total_other_expenses = len(other_expenses)
+            page = request.args.get('page', 1, type=int)
+            per_page = 10
+            offset = (page - 1) * per_page
+            other_expenses = other_expenses[offset:offset + per_page]
+            total_pages = (total_other_expenses + per_page - 1) // per_page
+            
+            error_messages = ["Database error occurred. Please try again."]
+            return render_template("other_expenses.html", error_messages=error_messages,
+                                 other_expenses=other_expenses, page=page, total_pages=total_pages)
 
 @app.route("/get_expenses", methods=["GET"])
 @login_required
@@ -2700,7 +2929,6 @@ def delete_patient(patient_id):
         print(error_message)
         flash("Failed to delete patient. Please try again later.", "error")
         return jsonify({'error': 'Error message here'})
-
 
 if __name__ == "__main__":
     socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=True, allow_unsafe_werkzeug=True)

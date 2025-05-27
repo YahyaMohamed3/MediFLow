@@ -5,42 +5,193 @@
 {% endblock %}
 
 {% block main %}
+<head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <style>
+        .password-tooltip {
+            position: absolute;
+            background: #333;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 1000;
+            max-width: 250px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            display: none;
+        }
+        .password-tooltip::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: 20px;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 5px solid #333;
+        }
+        .input-field {
+            transition: border-color 0.3s ease;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #4082f4;
+            box-shadow: 0 0 5px rgba(23, 82, 246, 0.3);
+        }
+        .is-invalid {
+            border-color: #dc3545 !important;
+        }
+        .is-valid {
+            border-color: #28a745 !important;
+        }
+    </style>
+</head>
 <main class="container py-5">
     <div class="row justify-content-center">
         <div class="col-lg-6">
-            <div class="card center-card">
+            <div class="card center-card" style="border: none;">
                 <div class="login-box">
-                    <div class="login-header">
-            <header>Register</header>
-            {% if error_message %}
-            <p class="error-message">{{ error_message }}</p>
-            {% endif %}
-        </div>
-        <form method="POST">
+                    <div class="login-header">            
+                        <header style="margin-top: 3rem;">Register</header>
+                    </div>
+                    
+                    <!-- Display server-side error messages -->
+                    {% if error_messages %}
+                            {% for error in error_messages %}
+                             <p style="text-align:center; margin-bottom:1rem;"class ="error-message">{{ error }}</p>
+                            {% endfor %}
+                    </div>
+                    {% elif error_message %}
+                    <p style="text-align:center; margin-bottom:1rem;" class="error-message">{{ error_message }}</p>
+                    {% endif %}
+                    
+                    <form method="POST" id="registerForm" class="needs-validation" novalidate>
+                        <div class="input-box">
+                            <input type="email" name="email" class="input-field form-control" placeholder="Email" autocomplete="off" required>
+                            <div class="invalid-feedback">Please provide a valid email address.</div>
+                        </div>
+                        
+                        <div class="input-box">
+                            <input type="text" name="first_name" class="input-field form-control" placeholder="First name" autocomplete="off" required maxlength="10">
+                            <div class="invalid-feedback">Please provide a first name (max 10 characters).</div>
+                        </div>
+                        
+                        <div class="input-box">
+                            <input type="text" name="last_name" class="input-field form-control" placeholder="Last name" autocomplete="off" required maxlength="10">
+                            <div class="invalid-feedback">Please provide a last name (max 10 characters).</div>
+                        </div>
+                        
+                        <div class="input-box" style="position: relative;">
+                            <input type="password" name="password" id="password" class="input-field form-control" placeholder="Password" autocomplete="off" required minlength="8">
+                            <div class="invalid-feedback">Password must be at least 8 characters long.</div>
+                            <div class="password-tooltip" id="passwordTooltip">
+                                <strong>Password Requirements:</strong><br>
+                                • At least 8 characters<br>
+                                • At least one uppercase letter<br>
+                                • At least one lowercase letter<br>
+                                • At least one number<br>
+                                • At least one special character (!$@%)
+                            </div>
+                        </div>
+                        
+                        <div class="input-box">
+                            <input type="password" name="confirm_password" id="confirmPassword" class="input-field form-control" placeholder="Confirm Password" autocomplete="off" required>
+                            <div class="invalid-feedback">Please confirm your password.</div>
+                        </div>
 
-        <div class="input-box">
-            <input type="email" name = "email" class="input-field" placeholder="Email" autocomplete="off" required>
-        </div>
-        <div class="input-box">
-        <input type="text" name = "first_name" class="input-field" placeholder="First name" autocomplete="off" required>
-        </div>
-        <div class="input-box">
-            <input type="text" name = "last_name" class="input-field" placeholder="Last name" autocomplete="off" required>
+                        <div class="input-submit" style="margin-top: 15px; margin-left:3.2rem; width:70%;">
+                            <button class="submit-btn" id="submit" type="submit"></button>
+                            <label for="submit">Register</label>
+                        </div>
+                    </form>
+                    <div class="sign-up-link" style="text-align: center; margin-top: 20px;">
+                <p>Already have an account? <a href="/login">Log In</a></p>
+                <p>By signing up, you agree to our <a href="#terms">Terms</a>, <a href="#privacy">Privacy Policy</a> and <a href="#cookies">Cookies Policy</a></p>
             </div>
-        <div class="input-box">
-            <input type="password" name = "password" class="input-field" placeholder="Password" autocomplete="off" required>
-        </div>
-        <div class="input-box">
-            <input type="password" name = "confirm_password" class="input-field" placeholder="Confirm Password" autocomplete="off" required>
-        </div>
-
-        <div class="input-submit" style="margin-top: 15px; margin-left:3.2rem; width:70%;">
-            <button class="submit-btn" id="submit"></button>
-            <label for="submit">Register</label>
+                </div>
+            </div> 
         </div>
     </div>
-</form>
-</div>
-</div>
-</div>
-{% endblock%}
+</main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('registerForm');
+    const passwordField = document.getElementById('password');
+    const confirmPasswordField = document.getElementById('confirmPassword');
+    const tooltip = document.getElementById('passwordTooltip');
+
+    // Password tooltip functionality
+    passwordField.addEventListener('focus', function() {
+        tooltip.style.display = 'block';
+        tooltip.style.top = (passwordField.offsetTop + passwordField.offsetHeight + 5) + 'px';
+        tooltip.style.left = passwordField.offsetLeft + 'px';
+    });
+
+    passwordField.addEventListener('blur', function() {
+        tooltip.style.display = 'none';
+    });
+
+    // Custom password validation
+    function validatePassword(password) {
+        const hasUpperCase = /[A-Z]/.test(password);
+        const hasLowerCase = /[a-z]/.test(password);
+        const hasNumbers = /\d/.test(password);
+        const hasSpecialChar = /[!$@%]/.test(password);
+        const isLongEnough = password.length >= 8;
+        
+        return hasUpperCase && hasLowerCase && hasNumbers && hasSpecialChar && isLongEnough;
+    }
+
+    // Real-time password validation
+    passwordField.addEventListener('input', function() {
+        if (this.value && !validatePassword(this.value)) {
+            this.classList.add('is-invalid');
+            this.classList.remove('is-valid');
+        } else if (this.value) {
+            this.classList.add('is-valid');
+            this.classList.remove('is-invalid');
+        }
+    });
+
+    // Password confirmation validation
+    confirmPasswordField.addEventListener('input', function() {
+        if (this.value && this.value !== passwordField.value) {
+            this.classList.add('is-invalid');
+            this.classList.remove('is-valid');
+            this.setCustomValidity('Passwords do not match');
+        } else if (this.value) {
+            this.classList.add('is-valid');
+            this.classList.remove('is-invalid');
+            this.setCustomValidity('');
+        }
+    });
+
+    // Form submission validation
+    form.addEventListener('submit', function(event) {
+        // Check password strength
+        if (!validatePassword(passwordField.value)) {
+            passwordField.classList.add('is-invalid');
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        // Check password confirmation
+        if (passwordField.value !== confirmPasswordField.value) {
+            confirmPasswordField.classList.add('is-invalid');
+            confirmPasswordField.setCustomValidity('Passwords do not match');
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        // Standard Bootstrap validation
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        form.classList.add('was-validated');
+    });
+});
+</script>
+
+{% endblock %}

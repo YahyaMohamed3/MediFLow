@@ -68,6 +68,18 @@
     <div class="col-md-4">
       <div class="expense-card">
         <h4>Add Expense</h4>
+        
+        <!-- Error Messages Display -->
+        {% if error_messages %}
+        <div class="alert alert-danger">
+          <ul class="mb-0">
+            {% for error in error_messages %}
+            <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+        
         <form id="expenseForm" action="/expenses/medical_supp" method="POST">
           <div class="form-group">
             <label for="expenseDescription">Description</label>
