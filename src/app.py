@@ -1,4 +1,5 @@
 import os
+import sys
 from os.path import relpath
 from flask import Flask, flash, g, render_template, request, session, url_for, redirect , jsonify , send_from_directory
 from flask_session import Session
@@ -35,8 +36,16 @@ except ImportError:
 app = Flask(__name__)
 socketio = SocketIO(app)
 
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv()
+
 # Generate a secure secret key for CSRF protection
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# Configure Flask environment
+app.config['ENV'] = os.getenv('FLASK_ENV', 'development')
+app.config['DEBUG'] = os.getenv('DEBUG', 'True').lower() == 'true'
 
 # Initialize CSRF Protection
 if CSRF_AVAILABLE:
@@ -82,13 +91,22 @@ app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
-# Configuration for database
-DATABASE = 'mediflow.db'
+# Configuration for database - Environment-based selection
+if os.getenv('FLASK_ENV') == 'production':
+    DATABASE = 'database/mediflow_production.db'
+else:
+    DATABASE = 'database/mediflow.db'
 
 
 def get_db():
     db = getattr(g, '_database', None)
     if db is None:
+        # Check if database exists before connecting
+        if not os.path.exists(DATABASE):
+            raise FileNotFoundError(
+                f"Database file '{DATABASE}' does not exist. "
+                f"Please run 'python init_database.py' to create the database first."
+            )
         db = g._database = sqlite3.connect(DATABASE)
     return db.cursor()
 
@@ -102,10 +120,45 @@ def close_connection(exception):
 
 @app.after_request
 def after_request(response):
-    """Ensure responses aren't cached"""
+    """Ensure responses aren't cached and add security headers"""
+    # Cache control headers
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Expires"] = 0
     response.headers["Pragma"] = "no-cache"
+    
+    # Security headers for production
+    if os.getenv('FLASK_ENV') == 'production':
+        # Prevent clickjacking attacks
+        response.headers["X-Frame-Options"] = "DENY"
+        
+        # Prevent MIME type sniffing
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        
+        # Enable XSS protection
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        
+        # Strict Transport Security (HTTPS only)
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+          # Content Security Policy
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://code.jquery.com https://cdn.jsdelivr.net https://unpkg.com; "
+            "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com; "
+            "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net https://unpkg.com; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'"
+        )
+        
+        # Referrer Policy
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        
+        # Feature Policy / Permissions Policy
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), "
+            "payment=(), usb=(), magnetometer=(), gyroscope=()"
+        )
+    
     return response
 
 def format_phone_number(phone_number):
@@ -786,11 +839,9 @@ def admin_appointments():
 
     # Calculate the start and end dates for the current week
     start_date_current_week = datetime.now().date() - timedelta(days=datetime.now().weekday())
-    end_date_current_week = start_date_current_week + timedelta(days=6)
-
-    # Convert dates to string format for SQL query
+    end_date_current_week = start_date_current_week + timedelta(days=6)    # Convert dates to string format for SQL query
     start_date_str_current_week = start_date_current_week.strftime('%Y-%m-%d')
-    end_date_str_current_week = end_date_str_current_week.strftime('%Y-%m-%d')
+    end_date_str_current_week = end_date_current_week.strftime('%Y-%m-%d')
 
     # Fetch appointments for the current week grouped by weekdays
     data = db.execute('''
@@ -803,11 +854,9 @@ def admin_appointments():
 
     # Calculate the start and end dates for the previous week
     end_date_previous_week = start_date_current_week - timedelta(days=1)
-    start_date_previous_week = end_date_previous_week - timedelta(days=6)
-
-    # Convert dates to string format for SQL query
+    start_date_previous_week = end_date_previous_week - timedelta(days=6)    # Convert dates to string format for SQL query
     start_date_str_previous_week = start_date_previous_week.strftime('%Y-%m-%d')
-    end_date_str_previous_week = end_date_str_previous_week.strftime('%Y-%m-%d')
+    end_date_str_previous_week = end_date_previous_week.strftime('%Y-%m-%d')
 
     # Fetch appointments for the previous week grouped by weekdays
     data_previous_week = db.execute('''
@@ -2931,4 +2980,29 @@ def delete_patient(patient_id):
         return jsonify({'error': 'Error message here'})
 
 if __name__ == "__main__":
-    socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=True, allow_unsafe_werkzeug=True)
+    # Check if database exists before starting the application
+    if not os.path.exists(DATABASE):
+        print(f"❌ Database file '{DATABASE}' does not exist!")
+        print("📋 Please run one of the following commands to create the database:")
+        print("   python init_database.py          # Create both databases")
+        print("   python init_database.py development  # Create development database only")
+        print("   python init_database.py production   # Create production database only")
+        sys.exit(1)
+    
+    # Get configuration from environment variables
+    host = os.getenv('HOST', '0.0.0.0')
+    port = int(os.getenv('PORT', 5000))
+    debug_mode = os.getenv('DEBUG', 'True').lower() == 'true'
+    
+    # Production vs Development configuration
+    if os.getenv('FLASK_ENV') == 'production':
+        print("🚀 Starting MediFlow in PRODUCTION mode...")
+        print(f"📊 Database: {DATABASE}")
+        print(f"🔒 Security headers: ENABLED")
+        print(f"🌐 Host: {host}:{port}")
+        socketio.run(app, host=host, port=port, debug=False)
+    else:
+        print("🔧 Starting MediFlow in DEVELOPMENT mode...")
+        print(f"📊 Database: {DATABASE}")
+        print(f"🌐 Host: {host}:{port}")
+        socketio.run(app, host=host, port=port, debug=debug_mode, allow_unsafe_werkzeug=True)

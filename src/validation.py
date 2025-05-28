@@ -63,9 +63,13 @@ class InputValidator:
         if not any(char.isdigit() for char in password):
             errors.append("Password must include at least one number")
         
-        # Check for at least one letter
-        if not any(char.isalpha() for char in password):
-            errors.append("Password must include letters")
+        # Check for at least one uppercase letter
+        if not any(char.isupper() for char in password):
+            errors.append("Password must include at least one uppercase letter")
+        
+        # Check for at least one lowercase letter
+        if not any(char.islower() for char in password):
+            errors.append("Password must include at least one lowercase letter")
         
         # Check for required special characters
         allowed_special_chars = "!$@%"
