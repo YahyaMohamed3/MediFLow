@@ -373,9 +373,7 @@ def reset():
             return redirect("/login")
 
         except sqlite3.Error as e:
-            error_message = "Database error occurred. Please try again."
-
-    # Validate that we have a token for GET requests
+            error_message = "Database error occurred. Please try again."    # Validate that we have a token for GET requests
     if not token:
         return redirect("/login")
     
@@ -428,9 +426,7 @@ def login():
                     
             except sqlite3.Error as e:
                 error_messages.append("Database error occurred. Please try again.")
-                print(f"Database error in login: {e}")
-
-    # Generate CSRF token for the form
+                print(f"Database error in login: {e}")    # Generate CSRF token for the form
     csrf_token = CSRFTokenGenerator.generate_token() if not CSRF_AVAILABLE else None
     
     return render_template("login.html", 

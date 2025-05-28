@@ -118,6 +118,7 @@ nav.open + main {
     width: 440px;
     height: 700px;
     padding: 30px;
+    border: none;
 }
 
 .login-header {
@@ -139,9 +140,10 @@ nav.open + main {
     margin-bottom: 15px;
     border-radius: 30px;
     border: none;
-    box-shadow: 0px 5px 10px 1px rgba(0, 0, 0, 0.05);
+    box-shadow: 0px 5px 10px 1px rgba(0, 85, 255, 0.103);
     outline: none;
-    transition: .3s;
+    transition : all 0.3s ease;
+
 }
 
 ::placeholder {
@@ -151,6 +153,9 @@ nav.open + main {
 
 .input-field:focus {
     width: 105%;
+    outline: none;
+    border-color: #4082f4;
+    box-shadow: 0 0 5px rgba(23, 82, 246, 0.3);
 }
 
 .forgot {

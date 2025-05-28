@@ -1,0 +1,77 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Log In
+{% endblock %}
+
+{% block main %}
+<head>
+    <style>
+        .is-invalid {
+            border-color: #dc3545 !important;
+        }
+        .is-valid {
+            border-color: #28a745 !important;
+        }
+    </style>
+</head>
+<main class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card center-card" style="border: none;">
+                <div class="login-box">
+                    <div class="login-header">
+                        <header>Login</header>
+                    </div>
+                    <form method="POST" id="loginForm" class="needs-validation" novalidate>
+                        {% if error_messages %}
+                        <p style="text-align:center; margin-bottom:1rem;" class="error-message">Password/email Invalid</p>
+                        {% endif %}
+                        <div class="input-box">
+                            <input type="email" name="email" class="input-field form-control" placeholder="Email" autocomplete="off" required>
+                            <div class="invalid-feedback">Please provide a valid email address.</div>
+                        </div>
+                        <div class="input-box">
+                            <input type="password" name="password" class="input-field form-control" placeholder="Password" autocomplete="off" required>
+                            <div class="invalid-feedback">Please provide a password.</div>
+                        </div>
+                        <div class="forgot">
+                            <section>
+                                <input type="checkbox" id="check">
+                                <label for="check">Remember me</label>
+                            </section>
+                            <section>
+                                <a href="/forgotten">Forgot password?</a>
+                            </section>
+                        </div>                        <div class="input-submit" style="margin-left:2.4rem; width:80%;">
+                            <button class="submit-btn" id="submit" type="submit"></button>
+                            <label for="submit">Sign In</label>
+                        </div>
+                        <div class="sign-up-link">
+                            <p>Don't have an account? <a href="/register">Register</a></p>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('loginForm');
+
+    // Form submission validation
+    form.addEventListener('submit', function(event) {
+        // Standard Bootstrap validation
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        form.classList.add('was-validated');
+    });
+});
+</script>
+
+{% endblock %}
