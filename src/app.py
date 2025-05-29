@@ -92,10 +92,13 @@ app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
 # Configuration for database - Environment-based selection
+# Get the absolute path to the project root directory
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
 if os.getenv('FLASK_ENV') == 'production':
-    DATABASE = 'database/mediflow_production.db'
+    DATABASE = os.path.join(PROJECT_ROOT, 'database', 'mediflow_production.db')
 else:
-    DATABASE = 'database/mediflow.db'
+    DATABASE = os.path.join(PROJECT_ROOT, 'database', 'mediflow.db')
 
 
 def get_db():
