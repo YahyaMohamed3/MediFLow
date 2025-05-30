@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -18,19 +19,21 @@ const Navbar = () => {
             whileHover={{ scale: 1.05 }}
             className="flex items-center"
           >
-            <img 
-              src="/[Original size] MediFLow.svg" 
-              alt="MediFlow Logo" 
-              className="h-[250px] w-auto mr-3"
-            />
+            <Link to="/">
+              <img 
+                src="/[Original size] MediFLow.svg" 
+                alt="MediFlow Logo" 
+                className="h-[250px] w-auto mr-3"
+              />
+            </Link>
           </motion.div>
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-8">
-            <NavLink href="#features">Features</NavLink>
-            <NavLink href="#about">About</NavLink>
-            <NavLink href="#pricing">Pricing</NavLink>
-            <NavLink href="#contact">Contact</NavLink>
+            <NavLink to="/">Home</NavLink>
+            <NavLink to="/about">About</NavLink>
+            <NavLink to="/pricing">Pricing</NavLink>
+            <NavLink to="/contact">Contact</NavLink>
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -61,10 +64,9 @@ const Navbar = () => {
               className="md:hidden"
             >
               <div className="py-4 space-y-4">
-                <MobileNavLink href="#features" onClick={() => setIsOpen(false)}>Features</MobileNavLink>
-                <MobileNavLink href="#about" onClick={() => setIsOpen(false)}>About</MobileNavLink>
-                <MobileNavLink href="#pricing" onClick={() => setIsOpen(false)}>Pricing</MobileNavLink>
-                <MobileNavLink href="#contact" onClick={() => setIsOpen(false)}>Contact</MobileNavLink>
+                <MobileNavLink to="/about" onClick={() => setIsOpen(false)}>About</MobileNavLink>
+                <MobileNavLink to="/pricing" onClick={() => setIsOpen(false)}>Pricing</MobileNavLink>
+                <MobileNavLink to="/contact" onClick={() => setIsOpen(false)}>Contact</MobileNavLink>
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   className="w-full bg-blue-600 text-white px-6 py-2 rounded-full font-semibold hover:bg-blue-700 transition-colors"
@@ -80,26 +82,32 @@ const Navbar = () => {
   );
 };
 
-const NavLink = ({ href, children }: { href: string; children: React.ReactNode }) => (
-  <motion.a
-    href={href}
-    className="text-blue-900 hover:text-blue-600 font-medium"
+const NavLink = ({ to, children }: { to: string; children: React.ReactNode }) => (
+  <motion.div
     whileHover={{ scale: 1.05 }}
     whileTap={{ scale: 0.95 }}
   >
-    {children}
-  </motion.a>
+    <Link
+      to={to}
+      className="text-blue-900 hover:text-blue-600 font-medium"
+    >
+      {children}
+    </Link>
+  </motion.div>
 );
 
-const MobileNavLink = ({ href, onClick, children }: { href: string; onClick: () => void; children: React.ReactNode }) => (
-  <motion.a
-    href={href}
-    onClick={onClick}
-    className="block text-blue-900 hover:text-blue-600 font-medium text-center"
+const MobileNavLink = ({ to, onClick, children }: { to: string; onClick: () => void; children: React.ReactNode }) => (
+  <motion.div
     whileTap={{ scale: 0.95 }}
   >
-    {children}
-  </motion.a>
+    <Link
+      to={to}
+      onClick={onClick}
+      className="block text-blue-900 hover:text-blue-600 font-medium text-center"
+    >
+      {children}
+    </Link>
+  </motion.div>
 );
 
 export default Navbar;
