@@ -1358,39 +1358,67 @@ def upload_file():
         return '.' in filename and \
                filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
+    db = get_db()
+    patient_id = request.args.get("data-patient-id")
+    user_id = session.get("user_id")
+    personal = []
+    files = []
+    page = 1
+    total_pages = 1
+
     if request.method == "POST":
         # Validate form input using secure validation
         validation_errors, validated_data = validate_file_upload_form()
-        
+
         if validation_errors:
             error_message = validation_errors[0]  # Show first error for compatibility
-            
+
         if 'document' not in request.files:
             error_message = "No file selected"
-        
+
         file = request.files.get('document')
         if not file or file.filename == '':
             error_message = "Please select a file to upload"
-        
-        patient_id = request.args.get("data-patient-id")
+
         if not patient_id:
             error_message = "Invalid patient ID"
-        
+
+        # --- Always get personal, files, and pagination values for error states ---
+        try:
+            personal = db.execute(
+                "SELECT * FROM patients WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))",
+                (patient_id, user_id)
+            ).fetchall()
+            files = db.execute(
+                "SELECT * FROM files WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))",
+                (patient_id, user_id)
+            ).fetchall()
+        except Exception:
+            personal = []
+            files = []
+
+        total_files = len(files)
+        page = request.args.get('page', 1, type=int)
+        per_page = 10
+        offset = (page - 1) * per_page
+        files_paginated = files[offset:offset + per_page]
+        total_pages = (total_files + per_page - 1) // per_page or 1
+
         if error_message:
-            # Get patient data for template
-            try:
-                db = get_db()
-                user_id = session.get("user_id")
-                personal = db.execute("SELECT * FROM patients WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))", (patient_id, user_id)).fetchall()
-                return render_template("upload.html", error_message=error_message, personal=personal)
-            except:
-                return render_template("upload.html", error_message=error_message)
+            return render_template(
+                "upload.html",
+                error_message=error_message,
+                personal=personal,
+                files=files_paginated,
+                page=page,
+                total_pages=total_pages
+            )
 
         if file and allowed_file(file.filename):
             try:
                 current_date = date.today()
                 today_date = current_date.strftime("%Y-%m-%d")
-                
+
                 filename = secure_filename(file.filename)
                 filename = generate_unique_filename(file.filename)
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -1399,7 +1427,7 @@ def upload_file():
                 # Store the filename, date, and user ID in the database
                 db = get_db()
                 user_id = session.get("user_id")
-                
+
                 # Verify patient exists and user has access
                 patient_check = db.execute("""
                     SELECT patient_id FROM patients 
@@ -1409,62 +1437,92 @@ def upload_file():
                         )
                     )
                 """, (patient_id, user_id))
-                
+
                 if not patient_check.fetchone():
                     error_message = "Patient not found or access denied"
-                    return render_template("upload.html", error_message=error_message)
-                
-                db.execute("INSERT INTO files (filename, filepath, file_date, created_by, patient_id, date_uploaded) VALUES (?, ?, ?, ?, ?, ?)",
-                        (filename, file_path, validated_data["file_date"], user_id, patient_id, today_date))
+                    return render_template(
+                        "upload.html",
+                        error_message=error_message,
+                        personal=personal,
+                        files=files_paginated,
+                        page=page,
+                        total_pages=total_pages
+                    )
+
+                db.execute(
+                    "INSERT INTO files (filename, filepath, file_date, created_by, patient_id, date_uploaded) VALUES (?, ?, ?, ?, ?, ?)",
+                    (filename, file_path, validated_data["file_date"], user_id, patient_id, today_date)
+                )
                 db.connection.commit()
 
-                personal = db.execute("SELECT * FROM patients WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))", (patient_id, user_id)).fetchall()
+                personal = db.execute(
+                    "SELECT * FROM patients WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))",
+                    (patient_id, user_id)
+                ).fetchall()
 
                 flash("File uploaded successfully", "success")
                 return redirect(f"/upload?data-patient-id={personal[0][0] if personal else ''}")
 
             except sqlite3.Error as e:
                 error_message = "Database error occurred. Please try again."
-                try:
-                    personal = db.execute("SELECT * FROM patients WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))", (patient_id, user_id)).fetchall()
-                    return render_template("upload.html", error_message=error_message, personal=personal)
-                except:
-                    return render_template("upload.html", error_message=error_message)
+                return render_template(
+                    "upload.html",
+                    error_message=error_message,
+                    personal=personal,
+                    files=files_paginated,
+                    page=page,
+                    total_pages=total_pages
+                )
         else:
             error_message = "Invalid file type. Please upload a valid document."
-            try:
-                db = get_db()
-                user_id = session.get("user_id")
-                personal = db.execute("SELECT * FROM patients WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))", (patient_id, user_id)).fetchall()
-                return render_template("upload.html", error_message=error_message, personal=personal)
-            except:
-                return render_template("upload.html", error_message=error_message)
+            return render_template(
+                "upload.html",
+                error_message=error_message,
+                personal=personal,
+                files=files_paginated,
+                page=page,
+                total_pages=total_pages
+            )
 
-    # For GET request
-    db = get_db()
-    patient_id = request.args.get("data-patient-id")
-    user_id = session.get("user_id")
-
+    # For GET request (not POST)
     try:
-        personal = db.execute("SELECT * FROM patients WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))", (patient_id, user_id)).fetchall()
-
-        files = db.execute("SELECT * FROM files WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))", (patient_id, user_id)).fetchall()
+        personal = db.execute(
+            "SELECT * FROM patients WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))",
+            (patient_id, user_id)
+        ).fetchall()
+        files = db.execute(
+            "SELECT * FROM files WHERE patient_id = ? AND created_by IN (SELECT users_id FROM users WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?))",
+            (patient_id, user_id)
+        ).fetchall()
     except sqlite3.Error as e:
         error_message = "Database error: " + str(e)
-    finally:
-        db.close()
+        personal = []
+        files = []
+
+    total_files = len(files)
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    offset = (page - 1) * per_page
+    files_paginated = files[offset:offset + per_page]
+    total_pages = (total_files + per_page - 1) // per_page or 1
 
     if error_message:
-        return render_template("upload.html" , personal = personal, error_message = error_message)
-
+        return render_template(
+            "upload.html",
+            personal=personal,
+            files=files_paginated,
+            error_message=error_message,
+            page=page,
+            total_pages=total_pages
+        )
     else:
-        total_files = len(files)
-        page = request.args.get('page', 1, type=int)
-        per_page = 10  # Number of patients per page
-        offset = (page - 1) * per_page
-        files = files[offset:offset + per_page]
-        total_pages = (total_files + per_page - 1) // per_page
-        return render_template("upload.html" , personal = personal, files = files, page = page, total_pages = total_pages)
+        return render_template(
+            "upload.html",
+            personal=personal,
+            files=files_paginated,
+            page=page,
+            total_pages=total_pages
+        )
 
 
 
@@ -1833,8 +1891,8 @@ def get_appointments():
         user_type = session.get("user_type")
         if user_type == "Receptionist":
             cursor = db.execute("""
-            SELECT Appointments.AppointmentDate,
-            Appointments.AppointmentID,
+            SELECT  Appointments.AppointmentID,
+            Appointments.AppointmentDate,
             Patients.name AS PatientName,
             Patients.date_of_birth AS PatientDOB,
             Doctors.last_name AS DoctorName,
@@ -1987,9 +2045,8 @@ def new_appointment():
                     
                     if not doctor_check.fetchone():
                         error_messages.append("Doctor not found or access denied")
-                    
-                    # Check doctor's working hours for the appointment day
-                    appointment_date = datetime.strptime(validated_data["appointment_date"], '%Y-%m-%d')
+                      # Check doctor's working hours for the appointment day
+                    appointment_date = validated_data["appointment_date"]  # This is already a datetime.date object
                     weekday = appointment_date.strftime('%A')
                     
                     doc_hours = db.execute("""
