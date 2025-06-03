@@ -25,7 +25,7 @@ fi
 
 # Run health checks
 echo "🏥 Running health checks..."
-python scripts/health_check.py
+python deployment/health_check.py
 
 if [ $? -ne 0 ]; then
     echo "❌ Health checks failed. Please fix issues before starting."

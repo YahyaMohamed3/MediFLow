@@ -79,9 +79,25 @@ def check_upload_directory():
 def check_application_startup():
     """Check if application can start without errors"""
     try:
-        # Import the main app to check for import errors
-        import app
-        return True, "Application imports successful"
+        import sys
+        import os
+        
+        # Get the project root directory
+        project_root = os.path.dirname(os.path.dirname(__file__))
+        src_path = os.path.join(project_root, 'src')
+        
+        # Add src to Python path
+        if src_path not in sys.path:
+            sys.path.insert(0, src_path)
+        
+        # Import the Flask app
+        from app import app
+        
+        # Quick test to see if app is configured properly
+        with app.app_context():
+            pass  # This will fail if there are configuration issues
+        
+        return True, "Application imports and initializes successfully"
     except Exception as e:
         return False, f"Application startup error: {str(e)}"
 
