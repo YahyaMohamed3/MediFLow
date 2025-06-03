@@ -2,13 +2,13 @@
 Input Validation and Sanitization Module for MediFlow
 Comprehensive security validation without external dependencies
 """
-
 import re
+import html
 import sqlite3
+import secrets
 from datetime import datetime, date
 from flask import request, flash
 from markupsafe import escape
-import html
 
 
 class InputValidator:
@@ -101,8 +101,7 @@ class InputValidator:
             return False, f"{field_name} can only include letters, spaces, apostrophes, and hyphens"
         
         return True, name.strip().title()
-    
-    @staticmethod
+      @staticmethod
     def validate_phone(phone):
         """Validate phone number"""
         if not phone:
@@ -118,11 +117,12 @@ class InputValidator:
             return False, "Phone number must be between 10-15 digits"
         
         return True, phone
+    
     @staticmethod
     def validate_unique_email(email, user_id=None):
         """Check if email is unique in database"""
         try:
-            db = sqlite3.connect('mediflow.db')
+            db = sqlite3.connect('database/mediflow_production.db')
             cursor = db.cursor()
             
             # Check in all user tables with their specific ID column names
@@ -538,12 +538,15 @@ def validate_patient_form():
         errors.append(fname_result)
     else:
         data["first_name"] = fname_result.title()
-    
-    is_valid, lname_result = InputValidator.validate_name(last_name, "Last name")
+      is_valid, lname_result = InputValidator.validate_name(last_name, "Last name")
     if not is_valid:
         errors.append(lname_result)
     else:
         data["last_name"] = lname_result.title()
+    
+    # Combine first and last name for database (patients table uses 'name' field)
+    if "first_name" in data and "last_name" in data:
+        data["name"] = f"{data['first_name']} {data['last_name']}"
     
     # Date of birth validation
     is_valid, dob_result = InputValidator.validate_date(dob, allow_future=False)
