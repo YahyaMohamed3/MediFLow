@@ -2,6 +2,7 @@
 Input Validation and Sanitization Module for MediFlow
 Comprehensive security validation without external dependencies
 """
+import os
 import re
 import html
 import sqlite3
@@ -95,13 +96,13 @@ class InputValidator:
         
         if len(name) < min_length or len(name) > max_length:
             return False, f"{field_name} must be between {min_length}-{max_length} characters"
-        
-        # Allow letters, spaces, apostrophes, and hyphens for names
+          # Allow letters, spaces, apostrophes, and hyphens for names
         if not re.match(r"^[a-zA-Z\s'-]+$", name):
             return False, f"{field_name} can only include letters, spaces, apostrophes, and hyphens"
         
         return True, name.strip().title()
-      @staticmethod
+    
+    @staticmethod
     def validate_phone(phone):
         """Validate phone number"""
         if not phone:
@@ -117,12 +118,20 @@ class InputValidator:
             return False, "Phone number must be between 10-15 digits"
         
         return True, phone
-    
     @staticmethod
     def validate_unique_email(email, user_id=None):
         """Check if email is unique in database"""
+        import os
         try:
-            db = sqlite3.connect('database/mediflow_production.db')
+            # Use environment-based database selection (same as app.py)
+            PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            
+            if os.getenv('FLASK_ENV') == 'production':
+                DATABASE = os.path.join(PROJECT_ROOT, 'database', 'mediflow_production.db')
+            else:
+                DATABASE = os.path.join(PROJECT_ROOT, 'database', 'mediflow.db')
+            
+            db = sqlite3.connect(DATABASE)
             cursor = db.cursor()
             
             # Check in all user tables with their specific ID column names
@@ -538,7 +547,8 @@ def validate_patient_form():
         errors.append(fname_result)
     else:
         data["first_name"] = fname_result.title()
-      is_valid, lname_result = InputValidator.validate_name(last_name, "Last name")
+    
+    is_valid, lname_result = InputValidator.validate_name(last_name, "Last name")
     if not is_valid:
         errors.append(lname_result)
     else:
