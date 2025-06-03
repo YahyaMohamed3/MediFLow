@@ -20,7 +20,7 @@ source .venv/Scripts/activate
 # Check if production database exists
 if [ ! -f "database/mediflow_production.db" ]; then
     echo "📊 Production database not found. Running deployment preparation..."
-    python scripts/deploy.py
+    python deployment/deploy.py
 fi
 
 # Run health checks
