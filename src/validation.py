@@ -85,7 +85,6 @@ class InputValidator:
             return False, "; ".join(errors)
         
         return True, password
-    
     @staticmethod
     def validate_name(name, field_name="Name", min_length=1, max_length=50):
         """Validate name fields"""
@@ -96,7 +95,8 @@ class InputValidator:
         
         if len(name) < min_length or len(name) > max_length:
             return False, f"{field_name} must be between {min_length}-{max_length} characters"
-          # Allow letters, spaces, apostrophes, and hyphens for names
+        
+        # Allow letters, spaces, apostrophes, and hyphens for names
         if not re.match(r"^[a-zA-Z\s'-]+$", name):
             return False, f"{field_name} can only include letters, spaces, apostrophes, and hyphens"
         
@@ -112,12 +112,12 @@ class InputValidator:
         
         # Remove all non-digit characters
         digits_only = re.sub(r'[^\d]', '', phone)
-        
-        # Check if it's between 10-15 digits
+          # Check if it's between 10-15 digits
         if not (10 <= len(digits_only) <= 15):
             return False, "Phone number must be between 10-15 digits"
         
         return True, phone
+    
     @staticmethod
     def validate_unique_email(email, user_id=None):
         """Check if email is unique in database"""
@@ -143,7 +143,7 @@ class InputValidator:
             
             for table, id_column in tables_and_ids:
                 if user_id:
-                    cursor.execute(f"SELECT email FROM {table} WHERE email = ? AND {id_column} != ?", (email, user_id))
+                    cursor.execute(f"SELECT email FROM {table} WHERE email = ? AND {id_column} != ?", (email, user_id))                
                 else:
                     cursor.execute(f"SELECT email FROM {table} WHERE email = ?", (email,))
                 
@@ -158,7 +158,7 @@ class InputValidator:
             return False, f"Database error: {str(e)}"
     
     @staticmethod
-    def validate_date(date_string, field_name="Date"):
+    def validate_date(date_string, field_name="Date", allow_future=True):
         """Validate date input"""
         if not date_string:
             return False, f"{field_name} is required"
@@ -166,6 +166,11 @@ class InputValidator:
         try:
             # Try to parse the date
             parsed_date = datetime.strptime(date_string, '%Y-%m-%d').date()
+            
+            # Check if future dates are allowed
+            if not allow_future and parsed_date > date.today():
+                return False, f"{field_name} cannot be in the future"
+            
             return True, parsed_date
         except ValueError:
             return False, f"Please provide a valid {field_name.lower()} in YYYY-MM-DD format"
@@ -664,9 +669,8 @@ def validate_appointment_form():
             data["doctor_id"] = doctor_id_int
     except ValueError:
         errors.append("Please select a valid doctor")
-    
-    # Date validation
-    is_valid, date_result = InputValidator.validate_date(app_date, allow_past=False)
+      # Date validation
+    is_valid, date_result = InputValidator.validate_date(app_date, allow_future=True)
     if not is_valid:
         errors.append(date_result)
     else:
