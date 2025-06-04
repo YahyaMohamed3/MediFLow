@@ -3,6 +3,7 @@ import sys
 from os.path import relpath
 from flask import Flask, flash, g, render_template, request, session, url_for, redirect , jsonify , send_from_directory
 from flask_session import Session
+from flask_cors import CORS
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 from helpers import login_required, generate_token , verify_token, validate_email , encrypt_message , decrypt_message, generate_unique_filename
@@ -35,6 +36,7 @@ except ImportError:
 
 app = Flask(__name__)
 socketio = SocketIO(app)
+CORS(app, supports_credentials=True)
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -442,6 +444,677 @@ def logout():
     session.clear()
     # Redirect user to login form
     return redirect("/")
+
+
+# -------------------- API Endpoints --------------------
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    validation_errors, data = validate_login_form()
+    if validation_errors:
+        return jsonify({'success': False, 'errors': validation_errors}), 400
+    email = data['email']
+    password = data['password']
+    try:
+        db = get_db()
+        admin = db.execute("SELECT * FROM admins WHERE email = ?", (email,)).fetchone()
+        user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        doctor = db.execute("SELECT * FROM doctors WHERE email = ?", (email,)).fetchone()
+        if admin and check_password_hash(admin[4], password):
+            session['user_id'] = admin[0]
+            session['user_type'] = 'admin'
+            return jsonify({'success': True, 'user_type': 'admin'})
+        elif user and check_password_hash(user[2], password):
+            session['user_id'] = user[0]
+            session['user_type'] = user[5]
+            return jsonify({'success': True, 'user_type': user[5]})
+        elif doctor and check_password_hash(doctor[10], password):
+            session['user_id'] = doctor[0]
+            session['user_type'] = doctor[11]
+            return jsonify({'success': True, 'user_type': 'doctor'})
+        return jsonify({'success': False, 'error': 'Invalid credentials'}), 401
+    except sqlite3.Error as e:
+        print(f"Database error in api_login: {e}")
+        return jsonify({'success': False, 'error': 'Database error'}), 500
+
+
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    errors, data = validate_registration_form()
+    if errors:
+        return jsonify({'success': False, 'errors': errors}), 400
+    try:
+        db = get_db()
+        existing = db.execute("SELECT id FROM admins WHERE email = ?", (data['email'],)).fetchone()
+        if existing:
+            return jsonify({'success': False, 'error': 'Email already exists'}), 400
+        hashed = generate_password_hash(data['password'])
+        db.execute(
+            "INSERT INTO admins (email, hash, first_name, last_name) VALUES (?, ?, ?, ?)",
+            (data['email'], hashed, data['first_name'], data['last_name'])
+        )
+        db.connection.commit()
+        return jsonify({'success': True})
+    except sqlite3.Error as e:
+        print(f"Database error in api_register: {e}")
+        return jsonify({'success': False, 'error': 'Database error'}), 500
+
+
+@app.route('/api/dashboard', methods=['GET'])
+@login_required
+def api_dashboard():
+    user_type = session.get('user_type')
+    if user_type != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    admin_id = session.get('user_id')
+    today_date = date.today()
+    patients_count = db.execute(
+        "SELECT COUNT(*) FROM patients WHERE created_by IN (SELECT users_id FROM users WHERE admin_id = ?)",
+        (admin_id,)
+    ).fetchone()[0]
+    appointments_count = db.execute(
+        "SELECT COUNT(*) FROM appointments WHERE created_by IN (SELECT users_id FROM users WHERE admin_id = ?)",
+        (admin_id,)
+    ).fetchone()[0]
+    total_revenue = db.execute(
+        "SELECT SUM(amount) FROM billing WHERE created_by IN (SELECT users_id FROM users WHERE admin_id = ?)",
+        (admin_id,)
+    ).fetchone()[0] or 0
+    return jsonify({
+        'patients': patients_count,
+        'appointments': appointments_count,
+        'revenue': total_revenue
+    })
+
+
+# Additional API endpoints for users and doctors
+
+@app.route('/api/users', methods=['GET', 'POST'])
+@login_required
+def api_users():
+    if session.get('user_type') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    if request.method == 'GET':
+        db.row_factory = sqlite3.Row
+        users = db.execute(
+            "SELECT users_id, email, first_name, last_name, usertype, phone_number FROM users WHERE admin_id = ?",
+            (session.get('user_id'),)
+        ).fetchall()
+        return jsonify([dict(row) for row in users])
+
+    data = request.get_json() or {}
+    required = ['email', 'first_name', 'last_name', 'password', 'usertype']
+    if not all(data.get(f) for f in required):
+        return jsonify({'success': False, 'error': 'Missing fields'}), 400
+    try:
+        hashed = generate_password_hash(data['password'])
+        db.execute(
+            "INSERT INTO users (email, hash, first_name, last_name, usertype, payroll, admin_id, phone_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                data['email'], hashed, data['first_name'], data['last_name'],
+                data['usertype'], data.get('payroll'), session.get('user_id'), data.get('phone')
+            )
+        )
+        db.connection.commit()
+        return jsonify({'success': True})
+    except sqlite3.Error as e:
+        print(f"Database error in api_users POST: {e}")
+        return jsonify({'success': False, 'error': 'Database error'}), 500
+
+
+@app.route('/api/doctors', methods=['GET', 'POST'])
+@login_required
+def api_doctors():
+    if session.get('user_type') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    if request.method == 'GET':
+        db.row_factory = sqlite3.Row
+        doctors = db.execute(
+            "SELECT doctor_id, email, first_name, last_name, specialization, phone FROM doctors WHERE admin_id = ?",
+            (session.get('user_id'),)
+        ).fetchall()
+        return jsonify([dict(row) for row in doctors])
+
+    data = request.get_json() or {}
+    required = ['email', 'first_name', 'last_name', 'password', 'specialization']
+    if not all(data.get(f) for f in required):
+        return jsonify({'success': False, 'error': 'Missing fields'}), 400
+    try:
+        hashed = generate_password_hash(data['password'])
+        db.execute(
+            """
+            INSERT INTO doctors (email, phone, years_of_experience, hash, first_name, last_name,
+                               specialization, usertype, address, payroll, admin_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                data['email'], data.get('phone'), data.get('experience', 0), hashed,
+                data['first_name'], data['last_name'], data['specialization'], 'Doctor',
+                data.get('address'), data.get('payroll'), session.get('user_id')
+            )
+        )
+        db.connection.commit()
+        return jsonify({'success': True})
+    except sqlite3.Error as e:
+        print(f"Database error in api_doctors POST: {e}")
+        return jsonify({'success': False, 'error': 'Database error'}), 500
+
+
+@app.route('/api/patients', methods=['GET', 'POST'])
+@login_required
+def api_patients():
+    db = get_db()
+    user_type = session.get('user_type')
+    if request.method == 'GET':
+        db.row_factory = sqlite3.Row
+        if user_type == 'admin':
+            admin_id = session.get('user_id')
+            patients = db.execute(
+                "SELECT p.patient_id, p.name, p.date_of_birth, p.gender, p.phone, p.email, p.address, p.insurance FROM patients p JOIN users u ON p.created_by = u.users_id WHERE u.admin_id = ?",
+                (admin_id,)
+            ).fetchall()
+        elif user_type == 'Receptionist':
+            admin_id = db.execute('SELECT admin_id FROM users WHERE users_id = ?', (session.get('user_id'),)).fetchone()[0]
+            patients = db.execute(
+                "SELECT p.patient_id, p.name, p.date_of_birth, p.gender, p.phone, p.email, p.address, p.insurance FROM patients p JOIN users u ON p.created_by = u.users_id WHERE u.admin_id = ?",
+                (admin_id,)
+            ).fetchall()
+        elif user_type == 'Doctor':
+            doctor_id = session.get('user_id')
+            patients = db.execute(
+                "SELECT DISTINCT p.patient_id, p.name, p.date_of_birth, p.gender, p.phone, p.email, p.address, p.insurance FROM Appointments a JOIN patients p ON a.PatientID = p.patient_id WHERE a.DoctorID = ?",
+                (doctor_id,),
+            ).fetchall()
+        else:
+            return jsonify({'error': 'Unauthorized'}), 403
+        return jsonify([dict(row) for row in patients])
+
+    if user_type != 'Receptionist':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.get_json() or {}
+    required = ['first_name', 'last_name', 'date_of_birth', 'gender', 'email', 'address']
+    if not all(data.get(f) for f in required):
+        return jsonify({'success': False, 'error': 'Missing fields'}), 400
+    try:
+        full_name = f"{data['first_name']} {data['last_name']}"
+        db.execute(
+            "INSERT INTO patients (name, date_of_birth, gender, address, phone, email, insurance, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                full_name,
+                data['date_of_birth'],
+                data['gender'],
+                data['address'],
+                data.get('phone'),
+                data['email'],
+                data.get('insurance'),
+                session.get('user_id'),
+            ),
+        )
+        db.connection.commit()
+        return jsonify({'success': True})
+    except sqlite3.Error as e:
+        print(f"Database error in api_patients POST: {e}")
+        return jsonify({'success': False, 'error': 'Database error'}), 500
+
+
+@app.route('/api/appointments', methods=['GET', 'POST'])
+@login_required
+def api_appointments():
+    db = get_db()
+    user_type = session.get('user_type')
+    if request.method == 'GET':
+        db.row_factory = sqlite3.Row
+        if user_type == 'admin':
+            admin_id = session.get('user_id')
+            appointments = db.execute(
+                "SELECT a.AppointmentID, a.AppointmentDate, a.StartTime, a.Reason, a.confirmed, p.name as patient_name, d.last_name as doctor_name FROM Appointments a JOIN patients p ON a.PatientID = p.patient_id JOIN doctors d ON a.DoctorID = d.doctor_id WHERE a.created_by IN (SELECT users_id FROM users WHERE admin_id = ?)",
+                (admin_id,),
+            ).fetchall()
+        elif user_type == 'Receptionist':
+            admin_id = db.execute('SELECT admin_id FROM users WHERE users_id = ?', (session.get('user_id'),)).fetchone()[0]
+            appointments = db.execute(
+                "SELECT a.AppointmentID, a.AppointmentDate, a.StartTime, a.Reason, a.confirmed, p.name as patient_name, d.last_name as doctor_name FROM Appointments a JOIN patients p ON a.PatientID = p.patient_id JOIN doctors d ON a.DoctorID = d.doctor_id WHERE a.created_by IN (SELECT users_id FROM users WHERE admin_id = ?)",
+                (admin_id,),
+            ).fetchall()
+        elif user_type == 'Doctor':
+            doctor_id = session.get('user_id')
+            appointments = db.execute(
+                "SELECT a.AppointmentID, a.AppointmentDate, a.StartTime, a.Reason, a.confirmed, p.name as patient_name, d.last_name as doctor_name FROM Appointments a JOIN patients p ON a.PatientID = p.patient_id JOIN doctors d ON a.DoctorID = d.doctor_id WHERE a.DoctorID = ?",
+                (doctor_id,),
+            ).fetchall()
+        else:
+            return jsonify({'error': 'Unauthorized'}), 403
+        return jsonify([dict(row) for row in appointments])
+
+    if user_type != 'Receptionist':
+        return jsonify({'error': 'Unauthorized'}), 403
+    data = request.get_json() or {}
+    required = ['patient_id', 'doctor_id', 'appointment_date', 'start_time', 'reason']
+    if not all(data.get(r) for r in required):
+        return jsonify({'success': False, 'error': 'Missing fields'}), 400
+    try:
+        db.execute(
+            "INSERT INTO Appointments (PatientID, AppointmentDate, StartTime, DoctorID, Reason, Notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                data['patient_id'],
+                data['appointment_date'],
+                data['start_time'],
+                data['doctor_id'],
+                data['reason'],
+                data.get('notes'),
+                session.get('user_id'),
+            ),
+        )
+        db.connection.commit()
+        return jsonify({'success': True})
+    except sqlite3.Error as e:
+        print(f"Database error in api_appointments POST: {e}")
+        return jsonify({'success': False, 'error': 'Database error'}), 500
+
+# ---------- Additional API endpoints ----------
+
+@app.route('/api/analytics', methods=['GET'])
+@login_required
+def api_analytics():
+    db = get_db()
+    gender_data = db.execute("SELECT gender, COUNT(*) FROM patients GROUP BY gender").fetchall()
+    total = sum(row[1] for row in gender_data) or 1
+    data = {row[0]: (row[1] / total) * 100 for row in gender_data}
+    return jsonify(data)
+
+
+@app.route('/api/messages', methods=['GET', 'POST'])
+@login_required
+def api_messages():
+    db = get_db()
+    user_id = session.get('user_id')
+    user_type = session.get('user_type')
+    if request.method == 'GET':
+        db.row_factory = sqlite3.Row
+        msgs = db.execute(
+            """
+            SELECT sender_id, sender_user_type, receiver_id, receiver_user_type, message, timestamp
+            FROM messages
+            WHERE (sender_id = ? AND sender_user_type = ?) OR (receiver_id = ? AND receiver_user_type = ?)
+            ORDER BY timestamp DESC LIMIT 50
+            """,
+            (user_id, user_type, user_id, user_type)
+        ).fetchall()
+        return jsonify([dict(row) for row in msgs])
+
+    data = request.get_json() or {}
+    required = ['receiver_id', 'receiver_user_type', 'message']
+    if not all(data.get(r) for r in required):
+        return jsonify({'success': False, 'error': 'Missing fields'}), 400
+    db.execute(
+        """
+        INSERT INTO messages (sender_id, sender_user_type, receiver_id, receiver_user_type, message, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (user_id, user_type, data['receiver_id'], data['receiver_user_type'], data['message'], datetime.now())
+    )
+    db.connection.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/api/expenses', methods=['GET'])
+@login_required
+def api_expenses():
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        "SELECT category, amount FROM expenses WHERE created_by IN (SELECT users_id FROM users WHERE admin_id = ?)",
+        (session.get('user_id'),)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/medical-records', methods=['GET'])
+@login_required
+def api_medical_records():
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        "SELECT record_id, patient_name, description FROM medical_records WHERE admin_id = ?",
+        (session.get('user_id'),)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/upload', methods=['POST'])
+@login_required
+def api_upload():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+    filename = secure_filename(file.filename)
+    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    return jsonify({'success': True, 'filename': filename})
+
+
+@app.route('/api/forgot', methods=['POST'])
+def api_forgot():
+    email = request.json.get('email', '').lower()
+    if not email or not validate_email(email):
+        return jsonify({'success': False, 'error': 'Invalid email'}), 400
+    # In a real app, send email here
+    return jsonify({'success': True, 'message': 'If this email exists we have sent a reset link'})
+
+
+@app.route('/api/reset', methods=['POST'])
+def api_reset():
+    data = request.get_json() or {}
+    token = data.get('token')
+    email = data.get('email')
+    password = data.get('password')
+    if not all([token, email, password]):
+        return jsonify({'success': False, 'error': 'Missing fields'}), 400
+    # Password update logic omitted
+    return jsonify({'success': True})
+
+@app.route('/api/equipments', methods=['GET'])
+@login_required
+def api_equipments():
+    if session.get('user_type') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        "SELECT equipment_id, description, amount, date FROM equipments WHERE admin_id = ?",
+        (session.get('user_id'),)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/marketing', methods=['GET'])
+@login_required
+def api_marketing():
+    if session.get('user_type') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        "SELECT marketing_id, description, amount, date FROM marketing WHERE admin_id = ?",
+        (session.get('user_id'),)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/medical-supplies', methods=['GET'])
+@login_required
+def api_medical_supplies():
+    if session.get('user_type') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        "SELECT med_id, description, amount, date FROM medical_supplies WHERE admin_id = ?",
+        (session.get('user_id'),)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/other-expenses', methods=['GET'])
+@login_required
+def api_other_expenses():
+    if session.get('user_type') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        "SELECT other_expenses_id, description, amount, date FROM other_expenses WHERE admin_id = ?",
+        (session.get('user_id'),)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/utilities', methods=['GET'])
+@login_required
+def api_utilities():
+    if session.get('user_type') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        "SELECT utility_id, description, amount, date FROM utilities WHERE admin_id = ?",
+        (session.get('user_id'),)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/billing', methods=['GET'])
+@login_required
+def api_billing():
+    if session.get('user_type') not in ('admin', 'Receptionist'):
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        "SELECT invoice_id, patient_id, amount, payment_status, invoice_date FROM billing WHERE created_by IN (SELECT users_id FROM users WHERE admin_id = ?)",
+        (session.get('user_id'),)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/prescriptions', methods=['GET'])
+@login_required
+def api_prescriptions():
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    user_type = session.get('user_type')
+    if user_type == 'Doctor':
+        rows = db.execute(
+            "SELECT prescription_id, patient_id, medication, dosage, instructions, date_prescribed FROM prescriptions WHERE doctor_id = ?",
+            (session.get('user_id'),)
+        ).fetchall()
+    elif user_type == 'admin':
+        rows = db.execute(
+            "SELECT prescription_id, patient_id, medication, dosage, instructions, date_prescribed FROM prescriptions WHERE doctor_id IN (SELECT doctor_id FROM doctors WHERE admin_id = ?)",
+            (session.get('user_id'),)
+        ).fetchall()
+    else:
+        return jsonify({'error': 'Unauthorized'}), 403
+    return jsonify([dict(row) for row in rows])
+
+# -------- Doctor specific API endpoints ---------
+
+@app.route('/api/doctor/dashboard', methods=['GET'])
+@login_required
+def api_doctor_dashboard():
+    if session.get('user_type') != 'Doctor':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    doc_id = session.get('user_id')
+    today = date.today()
+    rows = db.execute(
+        """
+        SELECT a.AppointmentDate as appointmentdate, a.StartTime as starttime, a.Reason as reason, a.Notes as notes, p.name as patient_name
+        FROM Appointments a
+        JOIN patients p ON a.PatientID = p.patient_id
+        WHERE a.DoctorID = ? AND DATE(a.AppointmentDate) = DATE(?)
+        """,
+        (doc_id, today)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/doctor/patients', methods=['GET'])
+@login_required
+def api_doctor_patients():
+    if session.get('user_type') != 'Doctor':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    doc_id = session.get('user_id')
+    patients = db.execute(
+        """
+        SELECT DISTINCT p.patient_id, p.name as patient_name
+        FROM Appointments a JOIN patients p ON a.PatientID = p.patient_id
+        WHERE a.DoctorID = ?
+        """,
+        (doc_id,)
+    ).fetchall()
+    return jsonify([dict(row) for row in patients])
+
+
+@app.route('/api/doctor/prescriptions/<int:patient_id>', methods=['GET', 'POST'])
+@login_required
+def api_doctor_manage_prescriptions(patient_id):
+    if session.get('user_type') != 'Doctor':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    doc_id = session.get('user_id')
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        required = ['medication', 'dosage', 'instructions']
+        if not all(data.get(r) for r in required):
+            return jsonify({'success': False, 'error': 'Missing fields'}), 400
+        db.execute(
+            """
+            INSERT INTO prescriptions (patient_id, doctor_id, medication, dosage, instructions, date_prescribed)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (patient_id, doc_id, data['medication'], data['dosage'], data['instructions'], date.today())
+        )
+        db.connection.commit()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        "SELECT prescription_id, medication, dosage, instructions, date_prescribed FROM prescriptions WHERE patient_id = ? AND doctor_id = ?",
+        (patient_id, doc_id)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/doctor/records/<int:patient_id>', methods=['GET'])
+@login_required
+def api_doctor_records(patient_id):
+    if session.get('user_type') != 'Doctor':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        """
+        SELECT visit_date, diagnosis, test_name, test_result, reference_range, test_date, follow_up_instructions
+        FROM medical_records WHERE patient_id = ? AND doctor_id = ?
+        """,
+        (patient_id, session.get('user_id'))
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/receptionist', methods=['GET'])
+@login_required
+def api_receptionist_today():
+    if session.get('user_type') != 'Receptionist':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    today = date.today()
+    rows = db.execute(
+        """
+        SELECT a.StartTime as start_time, p.name, p.date_of_birth
+        FROM Appointments a
+        JOIN patients p ON a.PatientID = p.patient_id
+        WHERE DATE(a.AppointmentDate) = DATE(?)
+        """,
+        (today,)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/schedule/<int:doctor_id>', methods=['GET'])
+@login_required
+def api_schedule(doctor_id):
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        "SELECT day, start_time, end_time FROM doctor_working_hours WHERE doctor_id = ?",
+        (doctor_id,)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/expenses/salaries', methods=['GET'])
+@login_required
+def api_expenses_salaries():
+    if session.get('user_type') != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        "SELECT employee, amount FROM salaries WHERE admin_id = ?",
+        (session.get('user_id'),)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/view_doctors', methods=['GET'])
+@login_required
+def api_view_doctors():
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        "SELECT doctor_id, first_name, last_name, specialization FROM doctors WHERE admin_id = (SELECT admin_id FROM users WHERE users_id = ?)",
+        (session.get('user_id'),)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.route('/api/patients/<int:patient_id>/details', methods=['GET'])
+@login_required
+def api_patient_details(patient_id):
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    personal = db.execute(
+        "SELECT * FROM patients WHERE patient_id = ?",
+        (patient_id,)
+    ).fetchone()
+    med = db.execute(
+        "SELECT * FROM medical_information WHERE patient_id = ?",
+        (patient_id,)
+    ).fetchall()
+    emergency = db.execute(
+        "SELECT * FROM emergency_contact WHERE patient_id_emergency = ?",
+        (patient_id,)
+    ).fetchall()
+    insurance = db.execute(
+        "SELECT * FROM insurance_information WHERE patient_id_insurance = ?",
+        (patient_id,)
+    ).fetchall()
+    return jsonify({
+        'personal': dict(personal) if personal else None,
+        'medical': [dict(m) for m in med],
+        'emergency': [dict(e) for e in emergency],
+        'insurance': [dict(i) for i in insurance]
+    })
+
+
+@app.route('/api/patients/<int:patient_id>/appointments', methods=['GET'])
+@login_required
+def api_patient_appointments(patient_id):
+    db = get_db()
+    db.row_factory = sqlite3.Row
+    rows = db.execute(
+        """
+        SELECT a.AppointmentDate as appointmentdate,
+               d.last_name as doctor,
+               a.StartTime as starttime,
+               a.Reason as reason,
+               a.confirmed
+        FROM Appointments a
+        JOIN Doctors d ON a.DoctorID = d.doctor_id
+        WHERE a.PatientID = ?
+        """,
+        (patient_id,)
+    ).fetchall()
+    return jsonify([dict(row) for row in rows])
+
 
 #messages----------------------------------------------------------
 
@@ -2977,6 +3650,17 @@ def delete_patient(patient_id):
         print(error_message)
         flash("Failed to delete patient. Please try again later.", "error")
         return jsonify({'error': 'Error message here'})
+
+
+# Serve React build
+@app.route('/app/', defaults={'path': ''})
+@app.route('/app/<path:path>')
+def serve_react(path):
+    build_dir = os.path.join(PROJECT_ROOT, 'frontend', 'build')
+    target = os.path.join(build_dir, path)
+    if path and os.path.exists(target):
+        return send_from_directory(build_dir, path)
+    return send_from_directory(build_dir, 'index.html')
 
 if __name__ == "__main__":
     # Check if database exists before starting the application
