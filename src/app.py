@@ -820,7 +820,7 @@ def index():
     # Ensure total_revenue is not None
     total_revenue = total_revenue if total_revenue else 0
 
-    return render_template("index.html", patients_count=patients_count, appointments_count=appointments_count, total_revenue=total_revenue, appointments_today=appointments_today, result = result)
+    return render_template("admin_dashboard.html", patients_count=patients_count, appointments_count=appointments_count, total_revenue=total_revenue, appointments_today=appointments_today, result = result)
 
 
 
